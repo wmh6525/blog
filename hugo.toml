@@ -1,0 +1,73 @@
+baseURL = "https://wmh6525.github.io/blog/"
+languageCode = "ko"
+title = "Research Lab"
+theme = "PaperMod"
+
+# 한국어 설정
+defaultContentLanguage = "ko"
+hasCJKLanguage = true
+
+[params]
+  author = "wmh6525"
+  description = "ML/AI 연구 노트, 논문 리뷰, 코드 구현 기록"
+  env = "production"
+  ShowReadingTime = true
+  ShowPostNavLinks = true
+  ShowBreadCrumbs = true
+  ShowCodeCopyButtons = true
+  ShowToc = true
+  TocOpen = false
+  defaultTheme = "auto"
+  disableThemeToggle = false
+
+  [params.homeInfoParams]
+    Title = "Research Lab"
+    Content = "ML/AI 연구 노트 · 논문 리뷰 · 코드 구현 기록"
+
+  [[params.socialIcons]]
+    name = "github"
+    url = "https://github.com/wmh6525"
+
+# 수식 지원 (KaTeX)
+[params.math]
+  enable = true
+
+# 코드 하이라이팅
+[markup]
+  [markup.highlight]
+    codeFences = true
+    guessSyntax = true
+    lineNos = false
+    style = "monokai"
+  [markup.goldmark.renderer]
+    unsafe = true
+
+# 메뉴
+[[menu.main]]
+  name = "홈"
+  url = "/"
+  weight = 1
+
+[[menu.main]]
+  name = "연구노트"
+  url = "/tags/연구노트/"
+  weight = 2
+
+[[menu.main]]
+  name = "논문리뷰"
+  url = "/tags/논문리뷰/"
+  weight = 3
+
+[[menu.main]]
+  name = "태그"
+  url = "/tags/"
+  weight = 4
+
+[[menu.main]]
+  name = "검색"
+  url = "/search/"
+  weight = 5
+
+# 검색 기능
+[outputs]
+  home = ["HTML", "RSS", "JSON"]
