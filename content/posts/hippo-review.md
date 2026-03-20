@@ -119,7 +119,7 @@ S4의 핵심 기여: HiPPO의 $A$ 행렬을 **효율적으로 계산**하는 방
 - HiPPO의 $A$는 밀집 행렬 → 직접 계산 시 $O(N^2L)$
 - S4: $A$를 **NPLR (Normal Plus Low-Rank)** 형태로 분해
 
-  $$A = V \Lambda V^* - PQ^*$$
+  $$A = V \Lambda V^{\ast} - PQ^{\ast}$$
 
 - 이를 통해 **글로벌 컨볼루션 커널**로 변환 → $O(L \log L)$
 
@@ -199,7 +199,7 @@ HiPPO 관점에서 기존 시퀀스 모델을 재해석할 수 있다:
 
 $N$차 상태 벡터로 과거를 압축하면 반드시 정보 손실이 발생한다. HiPPO는 주어진 $N$에서 **최소 근사 오차**를 보장하는 압축을 제공한다. 이는:
 
-$$\|f - f^{(t)}\|_{\mu^{(t)}} \leq C \cdot \frac{1}{N^s} \|f^{(s)}\|$$
+$$\lVert f - f^{(t)} \rVert_{\mu^{(t)}} \leq C \cdot \frac{1}{N^s} \lVert f^{(s)} \rVert$$
 
 함수 $f$가 $s$번 미분 가능하면, 근사 오차가 $N^{-s}$로 감소한다.
 

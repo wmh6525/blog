@@ -31,7 +31,7 @@ $$\hat{\mathbf{z}}_{l+1} = f_l(\mathbf{z}_l) = \phi(W_l \cdot \mathbf{z}_l + b_l
 
 PE는 $\delta_l = \mathbf{z}_l - \hat{\mathbf{z}}_l$이며, 전체 목적 함수(자유 에너지)는:
 
-$$\mathcal{F} = \frac{1}{2} \sum_{l=2}^{L} \|\delta_l\|_2^2$$
+$$\mathcal{F} = \frac{1}{2} \sum_{l=2}^{L} \lVert \delta_l \rVert_2^2$$
 
 PCN은 **추론 단계**(latent state 업데이트)와 **학습 단계**(가중치 업데이트)를 번갈아 수행한다.
 
@@ -65,7 +65,7 @@ PE가 네트워크 경계(입력/출력 계층)에 집중되고, **중간 계층
 
 추론 과정에서 latent state와 PE가 **지수적으로 성장하거나 감쇠**하는 현상이다.
 
-$$\|\delta_l^{t+1}\| \approx \tau_t(\sigma_w) \|\delta_l^t\|$$
+$$\lVert \delta_l^{t+1} \rVert \approx \tau_t(\sigma_w) \lVert \delta_l^t \rVert$$
 
 - $\tau_t > 1$: 기하급수적 성장 (폭발)
 - $\tau_t < 1$: 지수적 감쇠 (소실)
@@ -83,7 +83,7 @@ $$\|\delta_l^{t+1}\| \approx \tau_t(\sigma_w) \|\delta_l^t\|$$
 
 순방향 예측을 초기 값으로 고정하고($\hat{\mathbf{z}}_l^{(t)} = c_l$), 오차 $\tilde{\delta}_l := \mathbf{z}_l - c_l$에 대해 새로운 목적 함수를 정의한다:
 
-$$J(\tilde{\delta}) = \frac{1}{2} \sum_{l=2}^{L-1} \|\tilde{\delta}_l - g_l(\tilde{\delta}^*_{l+1}, h_{l+1}^{(0)})\|_2^2$$
+$$J(\tilde{\delta}) = \frac{1}{2} \sum_{l=2}^{L-1} \lVert \tilde{\delta}_l - g_l(\tilde{\delta}^{\ast}\_{l+1}, h_{l+1}^{(0)}) \rVert_2^2$$
 
 이것은 비선형 평형 시스템을 **선형화**하는 효과가 있다. 선형화된 정상 맵의 잔차를 0으로 만들어, PC 추론 동역학을 근본적으로 재구성한다.
 
@@ -97,7 +97,7 @@ $$J(\tilde{\delta}) = \frac{1}{2} \sum_{l=2}^{L-1} \|\tilde{\delta}_l - g_l(\til
 
 $$W \leftarrow \frac{W}{(\sqrt{m} + \sqrt{n})\sigma_w}$$
 
-이는 스펙트럼 노름 $\|W\|_2 \approx 1$을 보장하여:
+이는 스펙트럼 노름 $\lVert W \rVert_2 \approx 1$을 보장하여:
 - EVPE의 곱셈 스케일링 인자 $\tau_t(\sigma_w)$를 제어
 - PE 불균형의 기하급수적 감쇠 패턴 방지
 - 추가 하이퍼파라미터 불필요

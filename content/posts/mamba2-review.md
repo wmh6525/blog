@@ -30,6 +30,7 @@ Mamba-2의 가장 중요한 기여는 **이론적 통합**이다.
 
 Mamba-1의 selective SSM:
 $$h_t = \bar{A}_t \cdot h_{t-1} + \bar{B}_t \cdot x_t$$
+
 $$y_t = C_t \cdot h_t$$
 
 이를 풀어쓰면:
@@ -108,6 +109,7 @@ Input (B, L, D)
 추론 시에는 Mamba-1과 동일하게 **순환 모드** ($O(1)$ per token):
 
 $$h_t = a_t \cdot h_{t-1} + B_t \cdot x_t$$
+
 $$y_t = C_t \cdot h_t$$
 
 ---

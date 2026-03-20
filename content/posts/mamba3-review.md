@@ -95,15 +95,15 @@ $$h_t = e^{\Delta_t A_t} R_t \cdot h_{t-1} + \Delta_t B_t x_t$$
 
 여기서 $R_t$는 **블록 대각 2×2 회전 행렬**:
 
-$$R_t = \text{Block}\left(\{R(\Delta_t \theta_t[i])\}_{i=1}^{N/2}\right), \quad R(\theta) = \begin{bmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{bmatrix}$$
+$$R_t = \text{Block}\left(\lbrace R(\Delta_t \theta_t[i]) \rbrace_{i=1}^{N/2}\right), \quad R(\theta) = \begin{bmatrix} \cos\theta & -\sin\theta \\\\ \sin\theta & \cos\theta \end{bmatrix}$$
 
 ### RoPE와의 연결
 
 논문의 흥미로운 발견: 복소수 SSM은 **데이터 의존적 Rotary Position Embedding (RoPE)**과 동등하다.
 
-$$h_t = e^{\Delta_t A_t} R_t \cdot h_{t-1} + \left(\prod_{i=0}^{t} R_i^\top\right) \Delta_t B_t x_t$$
+$$h_t = e^{\Delta_t A_t} R_t \cdot h_{t-1} + \left(\prod\_{i=0}^{t} R_i^\top\right) \Delta_t B_t x_t$$
 
-$$y_t = \left[\left(\prod_{i=0}^{t} R_i^\top\right) C_t\right]^\top h_t$$
+$$y_t = \left[\left(\prod\_{i=0}^{t} R_i^\top\right) C_t\right]^\top h_t$$
 
 - 표준 RoPE: 고정 주파수 스케줄 $\theta[i] = 10000^{-2i/N}$
 - Mamba-3: **데이터 의존적** 회전 각도 $\Delta_t \theta_t[i]$
@@ -241,7 +241,7 @@ $$h_t = \alpha_t h_{t-1} + \beta_t B_{t-1} x_{t-1} + \gamma_t B_t x_t$$
 
 Mamba-3는 여전히 SSD 프레임워크의 인스턴스지만, 마스크 $L$이 **2-band semi-separable matrix**로 확장된다:
 
-$$L = \underbrace{\begin{bmatrix} 1 \\ \alpha_1 & 1 \\ \alpha_2\alpha_1 & \alpha_2 & 1 \\ \vdots & & \ddots & \ddots \end{bmatrix}}_{\text{decay}} \cdot \underbrace{\begin{bmatrix} \gamma_0 \\ \beta_1 & \gamma_1 \\ 0 & \beta_2 & \gamma_2 \\ \vdots & & \ddots & \ddots \end{bmatrix}}_{\text{2-band conv}}$$
+$$L = \underbrace{\begin{bmatrix} 1 \\\\ \alpha_1 & 1 \\\\ \alpha_2\alpha_1 & \alpha_2 & 1 \\\\ \vdots & & \ddots & \ddots \end{bmatrix}}\_{\text{decay}} \cdot \underbrace{\begin{bmatrix} \gamma_0 \\\\ \beta_1 & \gamma_1 \\\\ 0 & \beta_2 & \gamma_2 \\\\ \vdots & & \ddots & \ddots \end{bmatrix}}\_{\text{2-band conv}}$$
 
 Mamba-2는 $\gamma_t$만 있는 대각 행렬이었다. Mamba-3는 $\beta_t$를 추가하여 **decay와 2-band 컨볼루션의 곱** 구조를 가진다.
 

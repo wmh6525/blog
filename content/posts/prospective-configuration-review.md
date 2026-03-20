@@ -48,9 +48,11 @@ $$\mu_l = w_{l-1} \cdot f(x_{l-1})$$
 
 전체 에너지는 각 계층의 **prediction error 제곱합**:
 
-$$E(\mathbf{x}, \mathbf{w}) = \frac{1}{2} \sum_l \|\epsilon_l\|^2$$
+$$E(\mathbf{x}, \mathbf{w}) = \frac{1}{2} \sum_l \lVert \epsilon_l \rVert^2$$
 
-여기서 prediction error: $\epsilon_l = x_l - \mu_l = x_l - w_{l-1} f(x_{l-1})$
+여기서 prediction error:
+
+$$\epsilon_l = x_l - \mu_l = x_l - w_{l-1} f(x_{l-1})$$
 
 ### Phase 1: Inference (Neural Dynamics)
 
@@ -58,7 +60,7 @@ $$E(\mathbf{x}, \mathbf{w}) = \frac{1}{2} \sum_l \|\epsilon_l\|^2$$
 
 $$\Delta x_l = -\gamma \frac{\partial E}{\partial x_l} = -\gamma \left( \epsilon_l - w_l^T (\epsilon_{l+1} \odot f'(w_l x_l)) \right)$$
 
-이를 T step 반복하여 평형 상태 $x^* = \{x_0^*, x_1^*, \ldots, x_L^*\}$에 수렴한다.
+이를 T step 반복하여 평형 상태 $x^{\ast} = \lbrace x_0^{\ast}, x_1^{\ast}, \ldots, x_L^{\ast} \rbrace$에 수렴한다.
 
 핵심은 입력과 출력 **양쪽을 고정**하고, 중간 계층들이 **양방향 정보**를 받아 "학습 후의 활성 패턴"을 **미리** 찾아내는 것이다.
 
@@ -66,10 +68,10 @@ $$\Delta x_l = -\gamma \frac{\partial E}{\partial x_l} = -\gamma \left( \epsilon
 
 평형 수렴 후, 가중치를 **한 번만** 업데이트:
 
-$$\Delta w_l = \alpha \cdot \epsilon_{l+1}^* \odot f'(w_l x_l^*) \cdot (x_l^*)^T$$
+$$\Delta w_l = \alpha \cdot \epsilon_{l+1}^{\ast} \odot f'(w_l x_l^{\ast}) \cdot (x_l^{\ast})^T$$
 
 이것은 **순수 local Hebbian rule**이다:
-- pre-synaptic activity $x_l^*$와 post-synaptic prediction error $\epsilon_{l+1}^*$의 곱
+- pre-synaptic activity $x_l^{\ast}$와 post-synaptic prediction error $\epsilon_{l+1}^{\ast}$의 곱
 - 각 시냅스가 자기 직전/직후 뉴런의 정보만으로 업데이트
 - **global error signal이 불필요**
 
@@ -100,7 +102,7 @@ Whittington & Bogacz (2017)의 중요한 정리:
 
 > **평형 상태에서 PC의 prediction error는 BP의 gradient와 동일하다**
 >
-> $$\epsilon_l^* = \delta_l^{BP} \quad \text{(at equilibrium, when } \Sigma = 1\text{)}$$
+> $$\epsilon_l^{\ast} = \delta_l^{BP} \quad \text{(at equilibrium, when } \Sigma = 1\text{)}$$
 
 하지만 실제로는 유한 inference step에서 PC 업데이트가 BP와 **달라지며**, 이 차이가 오히려 장점이 된다:
 

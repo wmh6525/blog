@@ -35,6 +35,7 @@ $$y(t) = C \cdot h(t)$$
 이산화 후:
 
 $$h_t = \bar{A} \cdot h_{t-1} + \bar{B} \cdot x_t$$
+
 $$y_t = C \cdot h_t + D \cdot x_t$$
 
 ### 기존 SSM의 문제: LTI (Linear Time-Invariant)
@@ -51,18 +52,22 @@ S4 등 기존 SSM은 $A$, $B$, $C$가 학습 후 **고정**이었다. 즉 모든
 
 Mamba의 혁신은 $B$, $C$, $\Delta$를 **입력 의존적**으로 만든 것이다:
 
-$$B(t) = \text{Linear}_B(x(t))$$
-$$C(t) = \text{Linear}_C(x(t))$$
-$$\Delta(t) = \text{softplus}(\text{Linear}_\Delta(x(t)))$$
+$$B(t) = \text{Linear}\_B(x(t))$$
+
+$$C(t) = \text{Linear}\_C(x(t))$$
+
+$$\Delta(t) = \text{softplus}(\text{Linear}\_\Delta(x(t)))$$
 
 이산화:
 
 $$\bar{A}(t) = \exp(\Delta(t) \cdot A)$$
+
 $$\bar{B}(t) = (\Delta(t) \cdot A)^{-1} (\exp(\Delta(t) \cdot A) - I) \cdot \Delta(t) \cdot B(t)$$
 
 상태 전이:
 
 $$h(t) = \bar{A}(t) \cdot h(t-1) + \bar{B}(t) \cdot x(t)$$
+
 $$y(t) = C(t) \cdot h(t) + D \cdot x(t)$$
 
 ### $\Delta$의 의미: 선택적 메모리
