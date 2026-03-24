@@ -25,6 +25,7 @@ draft: false
 연속 시간 시스템을 이산화한 시퀀스 모델:
 
 $$h'(t) = A \cdot h(t) + B \cdot x(t)$$
+
 $$y(t) = C \cdot h(t)$$
 
 - $h(t)$: 은닉 상태 (state)

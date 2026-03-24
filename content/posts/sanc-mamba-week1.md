@@ -55,12 +55,14 @@ SancMamba의 기반 아키텍처인 Mamba의 핵심은 **입력 의존적 상태
 
 기존 SSM은 A, B, C가 학습 후 고정이었다. Mamba는 이를 **매 토큰마다 다르게** 만들었다:
 
-$$B(t) = \text{Linear}_B(x(t)), \quad C(t) = \text{Linear}_C(x(t))$$
-$$\Delta(t) = \text{softplus}(\text{Linear}_\Delta(x(t)))$$
+$$B(t) = \text{Linear}\_B(x(t)), \quad C(t) = \text{Linear}\_C(x(t))$$
+
+$$\Delta(t) = \text{softplus}(\text{Linear}\_\Delta(x(t)))$$
 
 이산화 후 상태 전이:
 
 $$h(t) = \bar{A}(t) \cdot h(t-1) + \bar{B}(t) \cdot x(t)$$
+
 $$y(t) = C(t) \cdot h(t) + D \cdot x(t)$$
 
 여기서 $\bar{A}(t) = \exp(\Delta(t) \cdot A)$이다. **$\Delta$가 크면** 이전 상태를 많이 잊고 새 입력을 강하게 반영하고, **$\Delta$가 작으면** 상태를 보존한다. 이 선택적 메커니즘이 Mamba가 Transformer에 필적하는 성능을 내는 핵심이다.
@@ -75,7 +77,7 @@ SANC(E3) 논문 (arXiv:2601.08224)의 핵심은 표현 단위가 **자기조직�
 
 $$E_3 = \lambda_1 \cdot L_{rec} + \lambda_2 \cdot C_{struct} + \lambda_3 \cdot C_{update}$$
 
-- $L_{rec} = \|e - G(\Sigma_t)\|^2$ : 재구성 오차
+- $L_{rec} = \lVert e - G(\Sigma_t) \rVert^2$ : 재구성 오차
 - $C_{struct} = |\Sigma_t| + H(\Sigma_t)$ : 구조적 복잡도
 - $C_{update} = \sum|{\Delta w_{ij}}|$ : 갱신 비용
 

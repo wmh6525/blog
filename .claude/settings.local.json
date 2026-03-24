@@ -3,7 +3,11 @@
     "allow": [
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git clone:*)",
+      "WebFetch(domain:arxiv.org)",
+      "Read(//tmp/eqprop-src/**)",
+      "Read(//private/tmp/eqprop-src/**)"
     ]
   }
 }
