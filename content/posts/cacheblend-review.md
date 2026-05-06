@@ -58,7 +58,7 @@ CacheBlend의 핵심 발견:
 
 각 토큰 $j$의 레이어 $i$에서의 KV 편차:
 
-$$\delta\_{kv}(j, i) = \lVert KV_i^{\text{isolated}}[j] - KV_i^{\text{full}}[j] \rVert_2$$
+$$\delta_{kv}(j, i) = \lVert KV_i^{\text{isolated}}[j] - KV_i^{\text{full}}[j] \rVert_2$$
 
 - $KV^{\text{isolated}}$: 독립적으로(다른 청크 없이) 계산된 KV 캐시
 - $KV^{\text{full}}$: 전체 컨텍스트와 함께 계산된 KV 캐시
@@ -81,7 +81,7 @@ $$\delta\_{kv}(j, i) = \lVert KV_i^{\text{isolated}}[j] - KV_i^{\text{full}}[j] 
 
 독립 계산된 KV 캐시는 다른 절대 위치를 가지므로, 회전 행렬 보정을 적용:
 
-$$K'\_{\text{corrected}} = R(\Delta pos) \cdot K\_{\text{cached}}$$
+$$K'_{\text{corrected}} = R(\Delta pos) \cdot K_{\text{cached}}$$
 
 RoPE가 상대 위치에만 의존하므로 이 보정은 **수학적으로 정확**하고 계산 비용 무시 가능.
 
@@ -105,7 +105,7 @@ I/O와 GPU 연산이 다른 하드웨어를 사용하므로 **완벽한 오버�
 
 ### 재계산 비율 결정 공식
 
-$$r\% = \max\left(\frac{T\_{\text{load}}}{T\_{\text{prefill}}}, r^{\ast}\%\right)$$
+$$r\% = \max\left(\frac{T_{\text{load}}}{T_{\text{prefill}}}, r^{\ast}\%\right)$$
 
 여기서 $r^{\ast}\% \approx 15\%$는 품질 유지를 위한 최소 비율.
 

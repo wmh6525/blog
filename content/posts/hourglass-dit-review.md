@@ -110,7 +110,7 @@ $\tau$는 헤드별 학습 가능한 온도.
 
 RoPE를 공간 축별로 분리 적용:
 
-$$\text{RoPE}\_{2D}(q) = \text{RoPE}\_x(q_{:d/4}) \oplus \text{RoPE}\_y(q_{d/4:d/2}) \oplus q_{d/2:}$$
+$$\text{RoPE}_{2D}(q) = \text{RoPE}_x(q_{:d/4}) \oplus \text{RoPE}_y(q_{d/4:d/2}) \oplus q_{d/2:}$$
 
 Q/K 차원의 1/4씩을 x축, y축 RoPE에 할당하고 나머지 1/2은 미수정.
 
@@ -120,7 +120,7 @@ Q/K 차원의 1/4씩을 x축, y축 RoPE에 할당하고 나머지 1/2은 미수�
 
 U-Net의 concatenation이나 단순 addition 대신 **learnable linear interpolation (lerp)**:
 
-$$x\_{merged} = f \cdot x\_{skip} + (1-f) \cdot x\_{upsampled}$$
+$$x_{merged} = f \cdot x_{skip} + (1-f) \cdot x_{upsampled}$$
 
 $f$는 학습 가능한 스칼라.
 

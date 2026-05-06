@@ -51,13 +51,13 @@ DeBERTa는 각 토큰을 **두 개의 분리된 벡터**로 표현한다:
 
 어텐션 스코어는 **네 가지 항**으로 분해된다:
 
-$$A_{i,j} = \underbrace{H_i H_j^\top}\_{\text{c2c: 콘텐츠↔콘텐츠}} + \underbrace{H_i P_{j|i}^\top}\_{\text{c2p: 콘텐츠↔위치}} + \underbrace{P_{i|j} H_j^\top}\_{\text{p2c: 위치↔콘텐츠}} + \underbrace{P_{i|j} P_{j|i}^\top}\_{\text{p2p: 위치↔위치 (제거)}}$$
+$$A_{i,j} = \underbrace{H_i H_j^\top}_{\text{c2c: 콘텐츠↔콘텐츠}} + \underbrace{H_i P_{j|i}^\top}_{\text{c2p: 콘텐츠↔위치}} + \underbrace{P_{i|j} H_j^\top}_{\text{p2c: 위치↔콘텐츠}} + \underbrace{P_{i|j} P_{j|i}^\top}_{\text{p2p: 위치↔위치 (제거)}}$$
 
 **p2p 항은 제거**한다 — 상대 위치 임베딩에서 위치↔위치 항은 추가 정보를 거의 제공하지 않기 때문.
 
 ### 최종 분리 어텐션 수식
 
-$$\tilde{A}\_{i,j} = Q_i^c {K_j^c}^\top + Q_i^c {K\_{\delta(i,j)}^r}^\top + K_j^c {Q\_{\delta(j,i)}^r}^\top$$
+$$\tilde{A}_{i,j} = Q_i^c {K_j^c}^\top + Q_i^c {K_{\delta(i,j)}^r}^\top + K_j^c {Q_{\delta(j,i)}^r}^\top$$
 
 - $Q^c = HW_{q,c}$, $K^c = HW_{k,c}$, $V^c = HW_{v,c}$: **콘텐츠** 프로젝션
 - $Q^r = PW_{q,r}$, $K^r = PW_{k,r}$: **상대 위치** 프로젝션
@@ -71,7 +71,7 @@ $$H_o = \text{softmax}\left(\frac{\tilde{A}}{\sqrt{3d}}\right) V^c$$
 
 ### 상대 위치 함수
 
-$$\delta(i,j) = \begin{cases} 0 & \text{if } i-j \leq -k \\\\ 2k-1 & \text{if } i-j \geq k \\\\ i-j+k & \text{otherwise} \end{cases}$$
+$$\delta(i,j) = \begin{cases} 0 & \text{if } i-j \leq -k \\ 2k-1 & \text{if } i-j \geq k \\ i-j+k & \text{otherwise} \end{cases}$$
 
 $k$는 최대 상대 거리 (사전학습 시 $k=512$).
 
@@ -178,7 +178,7 @@ Generator (소형 MLM):  마스킹된 토큰의 대체어를 생성
 Discriminator (DeBERTa): 모든 토큰이 원본인지 대체된 것인지 판별
 ```
 
-$$\mathcal{L} = \mathcal{L}\_{MLM} + \lambda \cdot \mathcal{L}\_{RTD} \quad (\lambda = 50)$$
+$$\mathcal{L} = \mathcal{L}_{MLM} + \lambda \cdot \mathcal{L}_{RTD} \quad (\lambda = 50)$$
 
 ### GDES: Gradient-Disentangled Embedding Sharing
 
@@ -189,9 +189,9 @@ ELECTRA의 문제: Generator와 Discriminator가 임베딩을 공유하면, MLM 
 
 **GDES 해법**:
 
-$$E_D = \text{sg}(E_G) + E\_{\delta}$$
+$$E_D = \text{sg}(E_G) + E_{\delta}$$
 
-$\text{sg}()$는 stop-gradient 연산자. Discriminator는 Generator 임베딩을 사용하되, RTD의 그래디언트는 잔차 $E\_{\delta}$만 업데이트하고 $E_G$는 건드리지 않는다.
+$\text{sg}()$는 stop-gradient 연산자. Discriminator는 Generator 임베딩을 사용하되, RTD의 그래디언트는 잔차 $E_{\delta}$만 업데이트하고 $E_G$는 건드리지 않는다.
 
 | 공유 방식 | MNLI-m | SQuAD F1 |
 |---------|--------|---------|

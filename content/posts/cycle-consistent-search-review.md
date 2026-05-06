@@ -22,7 +22,7 @@ draft: false
 
 Search-R1은 강화학습으로 검색 에이전트를 학습시키는 혁신적 방법이었지만, 한 가지 근본적 한계가 있다:
 
-$$r(x, y) = \text{EM}(a\_{\text{pred}}, a\_{\text{gold}})$$
+$$r(x, y) = \text{EM}(a_{\text{pred}}, a_{\text{gold}})$$
 
 **정답(gold answer)이 반드시 필요하다.** 보상 = 정답과의 Exact Match.
 
@@ -74,19 +74,19 @@ $$q \xrightarrow{\pi} \tau \xrightarrow{\phi} \hat{q} \approx q$$
 
 검색 궤적 $\tau$와 원래 질문 $q$ 사이의 **상호 정보량**을 최대화:
 
-$$I(Q; T\_\theta) = H(Q) - H(Q | T\_\theta)$$
+$$I(Q; T_\theta) = H(Q) - H(Q | T_\theta)$$
 
 $H(Q)$는 $\theta$와 무관하므로, 이는 다음과 동치:
 
-$$J(\theta) = \mathbb{E}\_{q \sim D, \tau \sim \pi\_\theta(\cdot|q)} [\log P(q | \tau)]$$
+$$J(\theta) = \mathbb{E}_{q \sim D, \tau \sim \pi_\theta(\cdot|q)} [\log P(q | \tau)]$$
 
 → "검색 궤적이 주어졌을 때 원래 질문의 조건부 확률"을 최대화.
 
 ### 보상 함수
 
-사전 학습된 고정 복원기(reconstructor) $P\_\phi$로 $\hat{q}$를 생성하고, 임베딩 유사도로 보상:
+사전 학습된 고정 복원기(reconstructor) $P_\phi$로 $\hat{q}$를 생성하고, 임베딩 유사도로 보상:
 
-$$r(\tau\_i) = \text{Sim}(E(q), E(\hat{q}\_i))$$
+$$r(\tau_i) = \text{Sim}(E(q), E(\hat{q}_i))$$
 
 - $E(\cdot)$: 문장 임베딩 (Qwen3-Embedding-4B)
 - $\text{Sim}$: 코사인 유사도
@@ -94,11 +94,11 @@ $$r(\tau\_i) = \text{Sim}(E(q), E(\hat{q}\_i))$$
 
 ### GRPO 목적 함수
 
-$$\mathcal{L}\_{\text{GRPO}}(\theta) = \mathbb{E}\_{q \sim D} \left[\frac{1}{G} \sum\_{i=1}^{G} \min\left(\frac{\pi\_\theta(\tau\_i|q)}{\pi\_{\theta\_{old}}(\tau\_i|q)} A\_i, \text{clip}(\cdot) A\_i\right) - \beta D\_{KL}(\pi\_\theta \| \pi\_{ref})\right]$$
+$$\mathcal{L}_{\text{GRPO}}(\theta) = \mathbb{E}_{q \sim D} \left[\frac{1}{G} \sum_{i=1}^{G} \min\left(\frac{\pi_\theta(\tau_i|q)}{\pi_{\theta_{old}}(\tau_i|q)} A_i, \text{clip}(\cdot) A_i\right) - \beta D_{KL}(\pi_\theta \| \pi_{ref})\right]$$
 
 그룹 내 상대적 이점(advantage):
 
-$$A\_i = \frac{r(\tau\_i) - \mu(\lbrace r(\tau\_j) \rbrace)}{\sigma(\lbrace r(\tau\_j) \rbrace) + \epsilon}$$
+$$A_i = \frac{r(\tau_i) - \mu(\lbrace r(\tau_j) \rbrace)}{\sigma(\lbrace r(\tau_j) \rbrace) + \epsilon}$$
 
 ---
 
@@ -113,9 +113,9 @@ $$A\_i = \frac{r(\tau\_i) - \mu(\lbrace r(\tau\_j) \rbrace)}{\sigma(\lbrace r(\t
                                                     ↑ 질문을 거의 그대로 반복!
 ```
 
-**해결 — 최종 응답 제거** ($\psi\_{\text{trace}}$):
+**해결 — 최종 응답 제거** ($\psi_{\text{trace}}$):
 
-$$\psi\_{\text{trace}}(\tau) = (a_1, o_1, \ldots, a\_{T-1}, o\_{T-1})$$
+$$\psi_{\text{trace}}(\tau) = (a_1, o_1, \ldots, a_{T-1}, o_{T-1})$$
 
 최종 생성 $a_T$를 궤적에서 잘라냄.
 
@@ -126,7 +126,7 @@ $$\psi\_{\text{trace}}(\tau) = (a_1, o_1, \ldots, a\_{T-1}, o\_{T-1})$$
 검색 쿼리: "부르즈 할리파 건축가"  ← 질문의 핵심 엔터티가 그대로!
 ```
 
-**해결 — NER 마스킹** ($\psi\_{\text{mask}}$):
+**해결 — NER 마스킹** ($\psi_{\text{mask}}$):
 
 ```
 원본 쿼리: "부르즈 할리파 건축가"
@@ -137,7 +137,7 @@ $$\psi\_{\text{trace}}(\tau) = (a_1, o_1, \ldots, a\_{T-1}, o\_{T-1})$$
 
 ### 전체 보틀넥 변환
 
-$$\psi(\tau) = \psi\_{\text{mask}} \circ \psi\_{\text{trace}}(\tau) = (\tilde{a}\_1, o\_1, \ldots, \tilde{a}\_{T-1}, o\_{T-1})$$
+$$\psi(\tau) = \psi_{\text{mask}} \circ \psi_{\text{trace}}(\tau) = (\tilde{a}_1, o_1, \ldots, \tilde{a}_{T-1}, o_{T-1})$$
 
 NER 모델: bert-base-NER.
 

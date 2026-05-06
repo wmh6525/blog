@@ -55,9 +55,9 @@ SancMamba의 기반 아키텍처인 Mamba의 핵심은 **입력 의존적 상태
 
 기존 SSM은 A, B, C가 학습 후 고정이었다. Mamba는 이를 **매 토큰마다 다르게** 만들었다:
 
-$$B(t) = \text{Linear}\_B(x(t)), \quad C(t) = \text{Linear}\_C(x(t))$$
+$$B(t) = \text{Linear}_B(x(t)), \quad C(t) = \text{Linear}_C(x(t))$$
 
-$$\Delta(t) = \text{softplus}(\text{Linear}\_\Delta(x(t)))$$
+$$\Delta(t) = \text{softplus}(\text{Linear}_\Delta(x(t)))$$
 
 이산화 후 상태 전이:
 
@@ -177,7 +177,7 @@ if 0x80 <= input_ids[t] <= 0xBF:
 
 $$h(t) = (1 - g(t)) \cdot [\bar{A}(t) \cdot h(t-1)] + \bar{B}(t) \cdot x(t)$$
 
-$g(t) = \sigma(\text{boundary\_head}(h(t)))$로, $g \to 1$이면 이전 상태를 거의 잊고 새 의미 단위를 시작한다.
+$g(t) = \sigma(\text{boundary_head}(h(t)))$로, $g \to 1$이면 이전 상태를 거의 잊고 새 의미 단위를 시작한다.
 
 ---
 

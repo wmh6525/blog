@@ -26,7 +26,7 @@ draft: false
 
 데이터 $d$가 관찰되었을 때의 놀라움:
 
-$$S\_{Shannon}(d) = -\log p(d)$$
+$$S_{Shannon}(d) = -\log p(d)$$
 
 확률이 낮을수록 놀랍다. 이것은 **데이터의 드물음**을 측정한다.
 
@@ -35,7 +35,7 @@ $$S\_{Shannon}(d) = -\log p(d)$$
 Shannon Surprise는 **모델의 변화를 반영하지 못한다**.
 
 예시: 동전을 100번 던져서 모두 앞면이 나왔다.
-- 101번째에 앞면: $S\_{Shannon} = -\log(0.5) = 1$ bit (공정한 동전 가정)
+- 101번째에 앞면: $S_{Shannon} = -\log(0.5) = 1$ bit (공정한 동전 가정)
 - 하지만 이미 100번 앞면을 봤으므로, **나는 이 동전이 편향되었다고 믿음을 바꿨다**
 - 101번째 앞면은 나에게 전혀 놀랍지 않다 — 이미 예상했으니까
 
@@ -59,7 +59,7 @@ Bayesian Surprise는 **데이터를 관찰하기 전후로 믿음(모델)이 얼
 
 Bayesian Surprise는 이 두 분포 사이의 **KL divergence**:
 
-$$S\_{Bayes}(D) = D\_{KL}\left(p(\mathcal{M} \mid D) \;\lVert\; p(\mathcal{M})\right)$$
+$$S_{Bayes}(D) = D_{KL}\left(p(\mathcal{M} \mid D) \;\lVert\; p(\mathcal{M})\right)$$
 
 $$= \int p(\mathcal{M} \mid D) \log \frac{p(\mathcal{M} \mid D)}{p(\mathcal{M})} \, d\mathcal{M}$$
 
@@ -67,7 +67,7 @@ $$= \int p(\mathcal{M} \mid D) \log \frac{p(\mathcal{M} \mid D)}{p(\mathcal{M})}
 
 - $p(\mathcal{M})$: 데이터를 보기 **전**의 믿음
 - $p(\mathcal{M} \mid D)$: 데이터를 본 **후**의 믿음
-- $D\_{KL}$: 두 분포 사이의 "거리" (엄밀히는 비대칭 발산)
+- $D_{KL}$: 두 분포 사이의 "거리" (엄밀히는 비대칭 발산)
 
 **믿음이 많이 바뀌면 놀라운 것이고, 적게 바뀌면 놀랍지 않은 것이다.**
 
@@ -81,7 +81,7 @@ $$p(\mathcal{M} \mid D) = \frac{p(D \mid \mathcal{M}) \cdot p(\mathcal{M})}{p(D)
 
 ### KL Divergence 전개
 
-$$S\_{Bayes}(D) = \int p(\mathcal{M} \mid D) \log \frac{p(\mathcal{M} \mid D)}{p(\mathcal{M})} \, d\mathcal{M}$$
+$$S_{Bayes}(D) = \int p(\mathcal{M} \mid D) \log \frac{p(\mathcal{M} \mid D)}{p(\mathcal{M})} \, d\mathcal{M}$$
 
 베이즈 정리를 대입하면:
 
@@ -89,7 +89,7 @@ $$= \int p(\mathcal{M} \mid D) \log \frac{p(D \mid \mathcal{M})}{p(D)} \, d\math
 
 $$= \int p(\mathcal{M} \mid D) \log p(D \mid \mathcal{M}) \, d\mathcal{M} - \log p(D)$$
 
-$$= \mathbb{E}\_{p(\mathcal{M}|D)}[\log p(D \mid \mathcal{M})] - \log p(D)$$
+$$= \mathbb{E}_{p(\mathcal{M}|D)}[\log p(D \mid \mathcal{M})] - \log p(D)$$
 
 **해석**: Bayesian Surprise = 사후 분포 하에서의 평균 로그 가능도 - 데이터의 로그 증거
 
@@ -120,7 +120,7 @@ $$p(\theta \mid H) = \text{Beta}(\alpha + 1, \beta)$$
 
 두 Beta 분포 사이의 KL divergence:
 
-$$S\_{Bayes}(H) = D\_{KL}(\text{Beta}(\alpha+1, \beta) \;\lVert\; \text{Beta}(\alpha, \beta))$$
+$$S_{Bayes}(H) = D_{KL}(\text{Beta}(\alpha+1, \beta) \;\lVert\; \text{Beta}(\alpha, \beta))$$
 
 $$= \log \frac{B(\alpha, \beta)}{B(\alpha+1, \beta)} + (\alpha+1-\alpha)\left[\psi(\alpha+1) - \psi(\alpha+\beta+1)\right]$$
 
@@ -145,7 +145,7 @@ $$= \log \frac{\alpha + \beta}{\alpha} + \psi(\alpha+1) - \psi(\alpha+\beta+1)$$
 
 | 항목 | Shannon Surprise | Bayesian Surprise |
 |------|-----------------|-------------------|
-| 정의 | $-\log p(d)$ | $D\_{KL}(p(\mathcal{M} \mid D) \lVert p(\mathcal{M}))$ |
+| 정의 | $-\log p(d)$ | $D_{KL}(p(\mathcal{M} \mid D) \lVert p(\mathcal{M}))$ |
 | 측정 대상 | **데이터의 드물음** | **믿음의 변화량** |
 | 모델 의존 | 고정된 하나의 모델 | 모델에 대한 **분포** |
 | 관찰자 의존 | 아니오 | **예** (사전 분포에 의존) |
@@ -188,11 +188,11 @@ $$= \log \frac{\alpha + \beta}{\alpha} + \psi(\alpha+1) - \psi(\alpha+\beta+1)$$
 
 Karl Friston의 자유 에너지 원리에서, 뇌는 **variational free energy**를 최소화한다:
 
-$$F = D\_{KL}(q(\theta) \lVert p(\theta \mid D)) = -\text{ELBO}$$
+$$F = D_{KL}(q(\theta) \lVert p(\theta \mid D)) = -\text{ELBO}$$
 
 이를 분해하면:
 
-$$F = \underbrace{D\_{KL}(q(\theta) \lVert p(\theta))}\_{\text{Complexity (≈ Bayesian Surprise)}} - \underbrace{\mathbb{E}\_q[\log p(D \mid \theta)]}\_{\text{Accuracy}}$$
+$$F = \underbrace{D_{KL}(q(\theta) \lVert p(\theta))}_{\text{Complexity (≈ Bayesian Surprise)}} - \underbrace{\mathbb{E}_q[\log p(D \mid \theta)]}_{\text{Accuracy}}$$
 
 **Complexity 항이 곧 Bayesian Surprise**이다. 뇌가 자유 에너지를 최소화한다는 것은, Bayesian Surprise를 적절히 관리한다는 것이다.
 
@@ -200,7 +200,7 @@ $$F = \underbrace{D\_{KL}(q(\theta) \lVert p(\theta))}\_{\text{Complexity (≈ B
 
 Predictive Coding Network에서:
 
-$$\text{Prediction Error} = x_l - \hat{x}\_l$$
+$$\text{Prediction Error} = x_l - \hat{x}_l$$
 
 이 prediction error가 크다는 것은 **현재 모델의 예측이 실제와 다르다**는 것이고, 모델을 업데이트해야 한다는 것이다. 이것은 Bayesian Surprise의 신경 구현으로 해석할 수 있다:
 
@@ -215,7 +215,7 @@ $$\text{Prediction Error} = x_l - \hat{x}\_l$$
 
 Bayesian Surprise가 높은 데이터 포인트 = 기존 모델에서 벗어나는 이상치.
 
-$$\text{Anomaly Score}(d) = D\_{KL}(p(\theta \mid d) \lVert p(\theta))$$
+$$\text{Anomaly Score}(d) = D_{KL}(p(\theta \mid d) \lVert p(\theta))$$
 
 Shannon Surprise 기반($-\log p(d)$)보다 **적응적** — 정상 패턴이 변화해도 자동으로 추적한다.
 
@@ -223,7 +223,7 @@ Shannon Surprise 기반($-\log p(d)$)보다 **적응적** — 정상 패턴이 �
 
 에이전트의 내적 보상(intrinsic reward)으로 Bayesian Surprise를 사용:
 
-$$r\_{intrinsic} = D\_{KL}(p(\theta \mid s, a, s') \lVert p(\theta))$$
+$$r_{intrinsic} = D_{KL}(p(\theta \mid s, a, s') \lVert p(\theta))$$
 
 새로운 전이 $(s, a, s')$가 모델을 많이 바꾸면 높은 보상 → **탐험 촉진**.
 
@@ -231,7 +231,7 @@ $$r\_{intrinsic} = D\_{KL}(p(\theta \mid s, a, s') \lVert p(\theta))$$
 
 가장 "놀라운" 데이터를 선택적으로 라벨링:
 
-$$d^{\ast} = \arg\max_d \mathbb{E}\_{p(y|d)}[S\_{Bayes}(d, y)]$$
+$$d^{\ast} = \arg\max_d \mathbb{E}_{p(y|d)}[S_{Bayes}(d, y)]$$
 
 예상 Bayesian Surprise가 가장 높은 데이터를 먼저 라벨링하면, 적은 라벨로 빠르게 학습할 수 있다.
 
@@ -239,7 +239,7 @@ $$d^{\ast} = \arg\max_d \mathbb{E}\_{p(y|d)}[S\_{Bayes}(d, y)]$$
 
 Transformer의 softmax attention 대신 **Bayesian Surprise 기반 어텐션 가중치**를 사용하는 연구:
 
-$$\text{Attention}(q, k_i) \propto S\_{Bayes}(k_i \mid q, \text{context})$$
+$$\text{Attention}(q, k_i) \propto S_{Bayes}(k_i \mid q, \text{context})$$
 
 문맥에서 모델을 가장 많이 바꾸는 키에 높은 가중치를 준다.
 
@@ -249,7 +249,7 @@ $$\text{Attention}(q, k_i) \propto S\_{Bayes}(k_i \mid q, \text{context})$$
 
 ### 비음수성
 
-$$S\_{Bayes}(D) = D\_{KL}(p(\mathcal{M} \mid D) \lVert p(\mathcal{M})) \geq 0$$
+$$S_{Bayes}(D) = D_{KL}(p(\mathcal{M} \mid D) \lVert p(\mathcal{M})) \geq 0$$
 
 KL divergence의 성질에 의해 항상 0 이상. 등호는 $p(\mathcal{M} \mid D) = p(\mathcal{M})$일 때 — 데이터가 믿음을 전혀 바꾸지 않을 때.
 
@@ -257,16 +257,16 @@ KL divergence의 성질에 의해 항상 0 이상. 등호는 $p(\mathcal{M} \mid
 
 데이터 $D_1, D_2$가 독립이면:
 
-$$S\_{Bayes}(D_1, D_2) \approx S\_{Bayes}(D_1) + S\_{Bayes}(D_2 \mid D_1)$$
+$$S_{Bayes}(D_1, D_2) \approx S_{Bayes}(D_1) + S_{Bayes}(D_2 \mid D_1)$$
 
 ### 순서 의존성
 
-일반적으로 $S\_{Bayes}(D_1 \text{ then } D_2) \neq S\_{Bayes}(D_2 \text{ then } D_1)$. 같은 데이터라도 **관찰 순서에 따라 놀라움이 다르다** — 직관과 일치한다.
+일반적으로 $S_{Bayes}(D_1 \text{ then } D_2) \neq S_{Bayes}(D_2 \text{ then } D_1)$. 같은 데이터라도 **관찰 순서에 따라 놀라움이 다르다** — 직관과 일치한다.
 
 ### 학습에 따른 감소
 
 동일한 유형의 데이터를 반복 관찰하면 Bayesian Surprise는 **단조 감소**한다:
 
-$$S\_{Bayes}(D_n) \leq S\_{Bayes}(D_1) \quad \text{(같은 유형의 데이터)}$$
+$$S_{Bayes}(D_n) \leq S_{Bayes}(D_1) \quad \text{(같은 유형의 데이터)}$$
 
 사후 분포가 점점 집중되면서(분산 감소), 새 데이터가 분포를 덜 바꾸기 때문이다.

@@ -57,7 +57,7 @@ $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d}}\right
 
 SSM은 이 능력이 **원리적으로 불가능**하다:
 
-$$h_t = \bar{A}\_t h_{t-1} + \bar{B}\_t x_t$$
+$$h_t = \bar{A}_t h_{t-1} + \bar{B}_t x_t$$
 
 상태 업데이트는 **순차적이고 비가역적**이다. 특정 과거 토큰을 "찾아서" 접근하는 메커니즘이 존재하지 않는다.
 

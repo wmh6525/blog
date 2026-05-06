@@ -83,7 +83,7 @@ $$\lVert \delta_l^{t+1} \rVert \approx \tau_t(\sigma_w) \lVert \delta_l^t \rVert
 
 순방향 예측을 초기 값으로 고정하고($\hat{\mathbf{z}}_l^{(t)} = c_l$), 오차 $\tilde{\delta}_l := \mathbf{z}_l - c_l$에 대해 새로운 목적 함수를 정의한다:
 
-$$J(\tilde{\delta}) = \frac{1}{2} \sum_{l=2}^{L-1} \lVert \tilde{\delta}_l - g_l(\tilde{\delta}^{\ast}\_{l+1}, h_{l+1}^{(0)}) \rVert_2^2$$
+$$J(\tilde{\delta}) = \frac{1}{2} \sum_{l=2}^{L-1} \lVert \tilde{\delta}_l - g_l(\tilde{\delta}^{\ast}_{l+1}, h_{l+1}^{(0)}) \rVert_2^2$$
 
 이것은 비선형 평형 시스템을 **선형화**하는 효과가 있다. 선형화된 정상 맵의 잔차를 0으로 만들어, PC 추론 동역학을 근본적으로 재구성한다.
 

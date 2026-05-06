@@ -29,13 +29,13 @@ PCA 같은 선형 차원 축소를 **비선형으로 확장**하려는 시도. �
 
 ### 구조
 
-$$z = f\_\theta(x) \quad \text{(인코더)}$$
+$$z = f_\theta(x) \quad \text{(인코더)}$$
 
-$$\hat{x} = g\_\phi(z) \quad \text{(디코더)}$$
+$$\hat{x} = g_\phi(z) \quad \text{(디코더)}$$
 
 ### 손실 함수
 
-$$\mathcal{L}\_{AE} = \lVert x - \hat{x} \rVert^2$$
+$$\mathcal{L}_{AE} = \lVert x - \hat{x} \rVert^2$$
 
 ### 특징
 
@@ -59,7 +59,7 @@ AE는 항등 함수를 학습할 위험이 있다. **입력에 노이즈를 추�
 
 $$\tilde{x} = x + \epsilon, \quad \epsilon \sim \mathcal{N}(0, \sigma^2)$$
 
-$$\mathcal{L}\_{DAE} = \lVert x - g\_\phi(f\_\theta(\tilde{x})) \rVert^2$$
+$$\mathcal{L}_{DAE} = \lVert x - g_\phi(f_\theta(\tilde{x})) \rVert^2$$
 
 노이즈가 낀 입력에서 원본을 복원하려면, 데이터의 **본질적 구조**를 학습해야 한다.
 
@@ -80,11 +80,11 @@ AE의 잠재 공간에 **확률적 구조**를 부여하여 **생성 모델**로
 
 인코더가 점 하나가 아닌 **분포**를 출력한다:
 
-$$q\_\phi(z \mid x) = \mathcal{N}(\mu\_\phi(x), \sigma\_\phi^2(x))$$
+$$q_\phi(z \mid x) = \mathcal{N}(\mu_\phi(x), \sigma_\phi^2(x))$$
 
 ### 목적 함수: ELBO
 
-$$\mathcal{L}\_{VAE} = \underbrace{\mathbb{E}\_{q\_\phi(z|x)}[\log p\_\theta(x|z)]}\_{\text{재구성 항}} - \underbrace{D\_{KL}(q\_\phi(z|x) \lVert p(z))}\_{\text{정규화 항}}$$
+$$\mathcal{L}_{VAE} = \underbrace{\mathbb{E}_{q_\phi(z|x)}[\log p_\theta(x|z)]}_{\text{재구성 항}} - \underbrace{D_{KL}(q_\phi(z|x) \lVert p(z))}_{\text{정규화 항}}$$
 
 - **재구성 항**: 디코더가 $z$에서 $x$를 잘 복원하는지 (= MSE 또는 BCE)
 - **KL 항**: 인코더 분포 $q(z \mid x)$가 사전 분포 $p(z) = \mathcal{N}(0, I)$에 가까운지
@@ -140,7 +140,7 @@ $$z_q(x) = e_k, \quad \text{where } k = \arg\min_j \lVert z_e(x) - e_j \rVert_2$
 
 ### 손실 함수
 
-$$\mathcal{L}\_{VQ} = \underbrace{\lVert x - \hat{x} \rVert^2}\_{\text{재구성}} + \underbrace{\lVert \text{sg}[z_e(x)] - e_k \rVert^2}\_{\text{코드북 학습}} + \beta \underbrace{\lVert z_e(x) - \text{sg}[e_k] \rVert^2}\_{\text{커밋먼트}}$$
+$$\mathcal{L}_{VQ} = \underbrace{\lVert x - \hat{x} \rVert^2}_{\text{재구성}} + \underbrace{\lVert \text{sg}[z_e(x)] - e_k \rVert^2}_{\text{코드북 학습}} + \beta \underbrace{\lVert z_e(x) - \text{sg}[e_k] \rVert^2}_{\text{커밋먼트}}$$
 
 - **재구성 손실**: 디코더가 원본을 잘 복원하는지
 - **코드북 손실**: 코드북 벡터 $e_k$를 인코더 출력 쪽으로 이동 (VQ 학습)
@@ -203,9 +203,9 @@ VQ-VAE는 단일 해상도의 코드맵을 사용한다. **다중 해상도 계�
 
 ### 구조
 
-$$z\_{top} \in \lbrace 1, \ldots, K \rbrace^{H_1 \times W_1} \quad \text{(전역 구조: 레이아웃, 형태)}$$
+$$z_{top} \in \lbrace 1, \ldots, K \rbrace^{H_1 \times W_1} \quad \text{(전역 구조: 레이아웃, 형태)}$$
 
-$$z\_{bottom} \in \lbrace 1, \ldots, K \rbrace^{H_2 \times W_2} \quad \text{(로컬 디테일: 질감, 색상)}$$
+$$z_{bottom} \in \lbrace 1, \ldots, K \rbrace^{H_2 \times W_2} \quad \text{(로컬 디테일: 질감, 색상)}$$
 
 - Top 코드맵: 작은 해상도, 전체적인 구조 담당
 - Bottom 코드맵: 큰 해상도, 세부 디테일 담당 (top에 조건부)
@@ -214,9 +214,9 @@ $$z\_{bottom} \in \lbrace 1, \ldots, K \rbrace^{H_2 \times W_2} \quad \text{(로
 
 계층적 자기회귀 모델:
 
-$$p(z\_{top}) = \prod_i p(z\_{top,i} \mid z\_{top,<i})$$
+$$p(z_{top}) = \prod_i p(z_{top,i} \mid z_{top,<i})$$
 
-$$p(z\_{bottom} \mid z\_{top}) = \prod_j p(z\_{bottom,j} \mid z\_{bottom,<j}, z\_{top})$$
+$$p(z_{bottom} \mid z_{top}) = \prod_j p(z_{bottom,j} \mid z_{bottom,<j}, z_{top})$$
 
 ### 결과
 
@@ -309,7 +309,7 @@ VQ-VAE의 문제들:
 
 각 차원을 독립적으로 **유한 수준으로 반올림**:
 
-$$\hat{z}\_i = \text{round}\left(\frac{L_i - 1}{2} \cdot \tanh(z_i)\right) \cdot \frac{2}{L_i - 1}$$
+$$\hat{z}_i = \text{round}\left(\frac{L_i - 1}{2} \cdot \tanh(z_i)\right) \cdot \frac{2}{L_i - 1}$$
 
 예를 들어 $d=6$ 차원, 각 차원이 $L = 5$ 수준이면:
 

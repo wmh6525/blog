@@ -87,11 +87,11 @@ $$y = \bar{K} \ast x \quad \text{(글로벌 컨볼루션)}$$
 
 $N=2$ (상태 차원 2), 시퀀스 $x = [1, 0, 0, 0, 1]$로 직접 계산해보자.
 
-$$A = \begin{bmatrix} -1 & 0 \\\\ 0 & -2 \end{bmatrix}, \quad B = \begin{bmatrix} 1 \\\\ 1 \end{bmatrix}, \quad C = \begin{bmatrix} 1 & 1 \end{bmatrix}$$
+$$A = \begin{bmatrix} -1 & 0 \\ 0 & -2 \end{bmatrix}, \quad B = \begin{bmatrix} 1 \\ 1 \end{bmatrix}, \quad C = \begin{bmatrix} 1 & 1 \end{bmatrix}$$
 
 $\Delta = 1$로 이산화:
 
-$$\bar{A} = \exp(\Delta A) = \begin{bmatrix} e^{-1} & 0 \\\\ 0 & e^{-2} \end{bmatrix} \approx \begin{bmatrix} 0.37 & 0 \\\\ 0 & 0.14 \end{bmatrix}$$
+$$\bar{A} = \exp(\Delta A) = \begin{bmatrix} e^{-1} & 0 \\ 0 & e^{-2} \end{bmatrix} \approx \begin{bmatrix} 0.37 & 0 \\ 0 & 0.14 \end{bmatrix}$$
 
 **단계별 계산:**
 
@@ -117,7 +117,7 @@ $N$을 키우면 다양한 시간 스케일의 기억을 동시에 유지할 수
 
 HiPPO의 해결: **과거 입력을 직교 다항식 기저로 최적 투영**하는 $A$ 행렬을 도출했다.
 
-$$A\_{nk} = -\begin{cases} (2n+1)^{1/2}(2k+1)^{1/2} & n > k \\\\ n+1 & n = k \\\\ 0 & n < k \end{cases}$$
+$$A_{nk} = -\begin{cases} (2n+1)^{1/2}(2k+1)^{1/2} & n > k \\ n+1 & n = k \\ 0 & n < k \end{cases}$$
 
 $N$차원 상태 벡터가 과거 함수를 르장드르 다항식으로 최적 근사한다. 근사 오차:
 
@@ -139,19 +139,19 @@ S4까지의 SSM은 **LTI (Linear Time-Invariant)** — $A$, $B$, $C$가 모든 �
 
 **Mamba의 해결**: $B$, $C$, $\Delta$를 **입력 의존적**으로 만든다.
 
-$$B_t = \text{Linear}\_B(x_t), \quad C_t = \text{Linear}\_C(x_t), \quad \Delta_t = \text{softplus}(\text{Linear}\_\Delta(x_t))$$
+$$B_t = \text{Linear}_B(x_t), \quad C_t = \text{Linear}_C(x_t), \quad \Delta_t = \text{softplus}(\text{Linear}_\Delta(x_t))$$
 
 이산화:
 
-$$\bar{A}\_t = \exp(\Delta_t \cdot A)$$
+$$\bar{A}_t = \exp(\Delta_t \cdot A)$$
 
-$$h_t = \bar{A}\_t \cdot h_{t-1} + \Delta_t \cdot B_t \cdot x_t$$
+$$h_t = \bar{A}_t \cdot h_{t-1} + \Delta_t \cdot B_t \cdot x_t$$
 
 $$y_t = C_t \cdot h_t$$
 
 ### $\Delta_t$의 역할: 선택적 메모리
 
-| $\Delta_t$ 값 | $\bar{A}\_t = e^{\Delta_t A}$ | 효과 |
+| $\Delta_t$ 값 | $\bar{A}_t = e^{\Delta_t A}$ | 효과 |
 |-------------|--------------------------|------|
 | **크면** | $\approx 0$ | 이전 상태 **잊고** 새 입력 강하게 기록 |
 | **작으면** | $\approx I$ | 이전 상태 **보존**, 새 입력 무시 |

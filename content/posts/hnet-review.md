@@ -69,7 +69,7 @@ DC는 **라우팅 모듈**, **스무딩 모듈**, **비율 손실** 세 구성�
 
 인접한 인코더 출력 간의 **코사인 비유사도**로 경계 확률을 계산한다:
 
-$$q_t = W_q \cdot \hat{x}\_t, \quad k_t = W_k \cdot \hat{x}\_t$$
+$$q_t = W_q \cdot \hat{x}_t, \quad k_t = W_k \cdot \hat{x}_t$$
 
 $$p_t = \frac{1}{2}\left(1 - \frac{q_t^\top k_{t-1}}{\lVert q_t \rVert \lVert k_{t-1} \rVert}\right) \in [0, 1]$$
 
@@ -87,7 +87,7 @@ $b_t = 1$인 위치의 벡터만 **직접 선택** (direct selection). Mean pool
 
 이산 경계는 그래디언트 흐름을 차단한다. **지수 이동 평균(EMA)**으로 이산 연산을 연속화한다:
 
-$$\bar{z}\_t = P_t \cdot \hat{z}\_t + (1 - P_t) \cdot \bar{z}\_{t-1}$$
+$$\bar{z}_t = P_t \cdot \hat{z}_t + (1 - P_t) \cdot \bar{z}_{t-1}$$
 
 세 가지 역할:
 1. **미분 가능한 경계 학습**: 이산 업샘플링을 연속 연산으로 변환
@@ -98,7 +98,7 @@ $$\bar{z}\_t = P_t \cdot \hat{z}\_t + (1 - P_t) \cdot \bar{z}\_{t-1}$$
 
 MoE의 load balancing에서 영감. 극단적 압축/비압축 방지:
 
-$$\mathcal{L}\_{ratio} = \frac{N}{N-1}\left((N-1) \cdot F \cdot G + (1-F)(1-G)\right)$$
+$$\mathcal{L}_{ratio} = \frac{N}{N-1}\left((N-1) \cdot F \cdot G + (1-F)(1-G)\right)$$
 
 - $F = \frac{1}{L}\sum_t b_t$ (실제 선택 비율, 비미분)
 - $G = \frac{1}{L}\sum_t p_t$ (평균 경계 확률, 미분 가능)
@@ -106,7 +106,7 @@ $$\mathcal{L}\_{ratio} = \frac{N}{N-1}\left((N-1) \cdot F \cdot G + (1-F)(1-G)\r
 
 $F = G = 1/N$일 때 최소. 전체 손실:
 
-$$\mathcal{L} = \mathcal{L}\_{AR} + \alpha \sum_{s=0}^{S-1} \mathcal{L}\_{ratio}^s, \quad \alpha = 0.03$$
+$$\mathcal{L} = \mathcal{L}_{AR} + \alpha \sum_{s=0}^{S-1} \mathcal{L}_{ratio}^s, \quad \alpha = 0.03$$
 
 ---
 

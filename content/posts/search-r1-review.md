@@ -79,17 +79,17 @@ Search-R1:     질의 → [추론... 검색! ... 추론... 검색! ... 추론...
 
 표준 RL:
 
-$$\max\_{\pi\_\theta} \mathbb{E}\_{x \sim D, y \sim \pi\_\theta(\cdot|x)} [r\_\phi(x, y)] - \beta \cdot D\_{KL}[\pi\_\theta \| \pi\_{ref}]$$
+$$\max_{\pi_\theta} \mathbb{E}_{x \sim D, y \sim \pi_\theta(\cdot|x)} [r_\phi(x, y)] - \beta \cdot D_{KL}[\pi_\theta \| \pi_{ref}]$$
 
 Search-R1 확장 — 검색 엔진 $R$과의 상호작용 포함:
 
-$$\max\_{\pi\_\theta} \mathbb{E}\_{x \sim D, y \sim \pi\_\theta(\cdot|x; R)} [r\_\phi(x, y)] - \beta \cdot D\_{KL}[\pi\_\theta(\cdot|x; R) \| \pi\_{ref}(\cdot|x; R)]$$
+$$\max_{\pi_\theta} \mathbb{E}_{x \sim D, y \sim \pi_\theta(\cdot|x; R)} [r_\phi(x, y)] - \beta \cdot D_{KL}[\pi_\theta(\cdot|x; R) \| \pi_{ref}(\cdot|x; R)]$$
 
 궤적 $y$에는 LLM이 생성한 토큰과 검색 엔진이 반환한 토큰이 **모두 포함**.
 
 ### 4.2 보상 함수: 놀랍도록 단순
 
-$$r\_\phi(x, y) = \text{EM}(a\_{pred}, a\_{gold})$$
+$$r_\phi(x, y) = \text{EM}(a_{pred}, a_{gold})$$
 
 **이진 Exact Match** — 정답이면 1, 아니면 0. 그게 전부.
 
@@ -104,9 +104,9 @@ $$r\_\phi(x, y) = \text{EM}(a\_{pred}, a\_{gold})$$
 
 궤적에는 LLM이 생성한 토큰과 검색 엔진이 반환한 토큰이 섞여 있다. 검색 결과 토큰에 대해 정책 그래디언트를 계산하면 안 된다 — LLM이 생성한 것이 아니므로.
 
-$$J(\theta) = \mathbb{E}\left[\frac{1}{\sum I(y_t)} \sum\_{t: I(y_t)=1} \min(\text{ratio} \cdot A_t, \text{clip}(\text{ratio}) \cdot A_t)\right]$$
+$$J(\theta) = \mathbb{E}\left[\frac{1}{\sum I(y_t)} \sum_{t: I(y_t)=1} \min(\text{ratio} \cdot A_t, \text{clip}(\text{ratio}) \cdot A_t)\right]$$
 
-$$I(y_t) = \begin{cases} 1 & \text{LLM이 생성한 토큰} \\\\ 0 & \text{검색 엔진이 반환한 토큰} \end{cases}$$
+$$I(y_t) = \begin{cases} 1 & \text{LLM이 생성한 토큰} \\ 0 & \text{검색 엔진이 반환한 토큰} \end{cases}$$
 
 `<information>...</information>` 블록의 토큰은 그래디언트에서 **제외**.
 

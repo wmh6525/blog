@@ -32,7 +32,7 @@ hasCJKLanguage = true
 [params.math]
   enable = true
 
-# 코드 하이라이팅
+# 코드 하이라이팅 + 수식(LaTeX) Passthrough
 [markup]
   [markup.highlight]
     codeFences = true
@@ -41,6 +41,12 @@ hasCJKLanguage = true
     style = "monokai"
   [markup.goldmark.renderer]
     unsafe = true
+  # 수식이 markdown 파서에 의해 깨지지 않도록 통과 (Hugo 0.122+)
+  [markup.goldmark.extensions.passthrough]
+    enable = true
+    [markup.goldmark.extensions.passthrough.delimiters]
+      block = [['\[', '\]'], ['$$', '$$']]
+      inline = [['\(', '\)'], ['$', '$']]
 
 # 메뉴
 [[menu.main]]

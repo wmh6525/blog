@@ -53,11 +53,11 @@ S4 등 기존 SSM은 $A$, $B$, $C$가 학습 후 **고정**이었다. 즉 모든
 
 Mamba의 혁신은 $B$, $C$, $\Delta$를 **입력 의존적**으로 만든 것이다:
 
-$$B(t) = \text{Linear}\_B(x(t))$$
+$$B(t) = \text{Linear}_B(x(t))$$
 
-$$C(t) = \text{Linear}\_C(x(t))$$
+$$C(t) = \text{Linear}_C(x(t))$$
 
-$$\Delta(t) = \text{softplus}(\text{Linear}\_\Delta(x(t)))$$
+$$\Delta(t) = \text{softplus}(\text{Linear}_\Delta(x(t)))$$
 
 이산화:
 

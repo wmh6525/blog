@@ -47,7 +47,7 @@ HNSW, NSG 같은 CPU 기반 그래프 ANN은 GPU의 SIMT 실행 모델과 근본
 
 ### Stage 1: 초기 k-NN 그래프
 
-GPU에서 **NN-Descent** 알고리즘으로 초기 $d\_{\text{init}}$-NN 그래프 구축 ($d\_{\text{init}} = 2d \sim 3d$).
+GPU에서 **NN-Descent** 알고리즘으로 초기 $d_{\text{init}}$-NN 그래프 구축 ($d_{\text{init}} = 2d \sim 3d$).
 
 ### Stage 2: 그래프 최적화 (2단계)
 
@@ -55,7 +55,7 @@ GPU에서 **NN-Descent** 알고리즘으로 초기 $d\_{\text{init}}$-NN 그래�
 
 각 엣지 $(X, Y)$에 대해 **우회 경로(detour)** 존재 여부를 확인:
 
-$$\text{Detourable}(X, Y) = \exists Z : \max(w\_{XZ}, w\_{ZY}) < w\_{XY}$$
+$$\text{Detourable}(X, Y) = \exists Z : \max(w_{XZ}, w_{ZY}) < w_{XY}$$
 
 우회 가능한 엣지를 우선 제거 → 상위 $d$개만 유지.
 
@@ -112,7 +112,7 @@ GPU 워프(32 스레드)를 더 작은 **팀**으로 분할:
 | **용도** | 대규모 배치 (≥100) | 소규모 배치 (1~100) |
 | **구조** | 1 쿼리 = 1 CTA | 1 쿼리 = 여러 CTA |
 | **해시 테이블** | 공유 메모리 (~4 KB) | 디바이스 메모리 |
-| **반복당 노드** | $p \times d$ | $\text{num\_CTAs} \times d$ |
+| **반복당 노드** | $p \times d$ | $\text{num_CTAs} \times d$ |
 
 **핵심**: multi-CTA 모드 덕분에 **단일 쿼리에서도** CPU보다 빠른 최초의 GPU ANN.
 
