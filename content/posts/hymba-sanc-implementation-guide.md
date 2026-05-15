@@ -73,7 +73,7 @@ Phase 9: 개념 → 토큰      ConceptDecoder: C4 → "그래서 피곤했다"
 
 | 공리 | 이름 | 정의 |
 |------|------|------|
-| **A1** | 유한 활성 용량 | $\kappa(A_t) \leq C < \infty$. 매 시점 활성 상태는 유한 |
+| **A1** | 유한 활성 용량 | $\kappa(A_t) \leq C \lt  \infty$. 매 시점 활성 상태는 유한 |
 | **A2** | 유사성 기반 경쟁 | 유사한 후보들이 경쟁, 클래스당 최대 하나만 선택 |
 | **A3** | 안정화와 삭제 | 반복 관찰 시 $co^{\ast}$ 증가, 미관찰 시 감소 |
 | **A4** | 에너지 E3 | $E_3 = \lambda_1 \cdot L_{rec} + \lambda_2 \cdot C_{struct} + \lambda_3 \cdot C_{update}$ |

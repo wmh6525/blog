@@ -74,7 +74,7 @@ $$\frac{dc}{dt} = A(t) \cdot c(t) + B(t) \cdot f(t)$$
 
 과거 전체를 균등하게 기억하는 LegS의 경우:
 
-$$A_{nk} = -\begin{cases} (2n+1)^{1/2}(2k+1)^{1/2} & \text{if } n > k \\ n+1 & \text{if } n = k \\ 0 & \text{if } n < k \end{cases}$$
+$$A_{nk} = -\begin{cases} (2n+1)^{1/2}(2k+1)^{1/2} & \text{if } n \gt  k \\ n+1 & \text{if } n = k \\ 0 & \text{if } n \lt  k \end{cases}$$
 
 $$B_n = (2n+1)^{1/2}$$
 
@@ -84,7 +84,7 @@ $$B_n = (2n+1)^{1/2}$$
 
 지수적 감쇠 가중의 LagT:
 
-$$A_{nk} = -\begin{cases} 1 & \text{if } n \geq k \\ 0 & \text{if } n < k \end{cases}$$
+$$A_{nk} = -\begin{cases} 1 & \text{if } n \geq k \\ 0 & \text{if } n \lt  k \end{cases}$$
 
 $$B_n = 1$$
 

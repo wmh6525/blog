@@ -13,7 +13,7 @@ draft: false
 
 표준 LLM(GPT, LLaMA)은 **자회귀(autoregressive)** — 토큰을 **하나씩 순차적으로** 생성한다:
 
-$$P(x_1, \ldots, x_T) = \prod_{t=1}^{T} P(x_t \mid x_{<t})$$
+$$P(x_1, \ldots, x_T) = \prod_{t=1}^{T} P(x_t \mid x_{\lt t})$$
 
 이미지 분야에서는 **확산 모델(diffusion model)**이 GAN과 자회귀를 압도하고 있다. **그렇다면 텍스트도?**
 
@@ -108,7 +108,7 @@ $$p_\theta(x_0) = \int p(x_T) \prod_{t=1}^{T} p_\theta(x_{t-1} \mid x_t) \, dx_{
 
 ### ELBO
 
-$$\log p(x_0) \geq \mathbb{E}_q\left[\log p(x_0 \mid x_1)\right] - \sum_{t>1} \mathbb{E}_q\left[D_{KL}(q(x_{t-1} \mid x_t, x_0) \| p_\theta(x_{t-1} \mid x_t))\right]$$
+$$\log p(x_0) \geq \mathbb{E}_q\left[\log p(x_0 \mid x_1)\right] - \sum_{t\gt 1} \mathbb{E}_q\left[D_{KL}(q(x_{t-1} \mid x_t, x_0) \| p_\theta(x_{t-1} \mid x_t))\right]$$
 
 ---
 

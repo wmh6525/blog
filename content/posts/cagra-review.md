@@ -55,7 +55,7 @@ GPU에서 **NN-Descent** 알고리즘으로 초기 $d_{\text{init}}$-NN 그래�
 
 각 엣지 $(X, Y)$에 대해 **우회 경로(detour)** 존재 여부를 확인:
 
-$$\text{Detourable}(X, Y) = \exists Z : \max(w_{XZ}, w_{ZY}) < w_{XY}$$
+$$\text{Detourable}(X, Y) = \exists Z : \max(w_{XZ}, w_{ZY}) \lt  w_{XY}$$
 
 우회 가능한 엣지를 우선 제거 → 상위 $d$개만 유지.
 

@@ -13,7 +13,7 @@ draft: false
 
 표준 LLM은 **이산 토큰**을 예측한다:
 
-$$P(x_t | x_{<t}) = \text{softmax}(W \cdot h_t)$$
+$$P(x_t | x_{\lt t}) = \text{softmax}(W \cdot h_t)$$
 
 → 어휘 V (50k~100k) 위의 확률 분포 → 한 토큰 샘플링
 

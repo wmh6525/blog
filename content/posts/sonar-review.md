@@ -151,7 +151,7 @@ $$\mathcal{L} = \mathcal{L}_{\text{MT}} + \alpha \cdot \mathcal{L}_{\text{MSE}} 
 
 표준 sequence-to-sequence cross-entropy:
 
-$$\mathcal{L}_{\text{MT}} = -\sum_{t} \log P(y_t \mid y_{<t}, E(x))$$
+$$\mathcal{L}_{\text{MT}} = -\sum_{t} \log P(y_t \mid y_{\lt t}, E(x))$$
 
 - $E(x)$: 인코더 출력 (1024-d 벡터)
 - $y$: 다른 언어로의 번역

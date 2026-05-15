@@ -54,8 +54,8 @@ $$\mathcal{L} = \log\left(1 + e^{-(g_{pos} - \theta)}\right) + \log\left(1 + e^{
 - $\theta$: 임계값 (positive/negative 분리 경계)
 
 직관적으로:
-- **Positive**: goodness $> \theta$ → "이건 진짜다"
-- **Negative**: goodness $< \theta$ → "이건 가짜다"
+- **Positive**: goodness $\gt  \theta$ → "이건 진짜다"
+- **Negative**: goodness $\lt  \theta$ → "이건 가짜다"
 
 ---
 

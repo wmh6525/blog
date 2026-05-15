@@ -121,11 +121,11 @@ $$P(y | x) = \sum_z P(y | x, z) \cdot P(z | x)$$
 
 **RAG-Sequence**: 하나의 문서로 전체 답변 생성
 
-$$P(y | x) = \sum_z P(z | x) \cdot \prod_i P(y_i | x, z, y_{<i})$$
+$$P(y | x) = \sum_z P(z | x) \cdot \prod_i P(y_i | x, z, y_{\lt i})$$
 
 **RAG-Token**: 토큰마다 다른 문서 marginalize
 
-$$P(y_i | x, y_{<i}) = \sum_z P(z | x) \cdot P(y_i | x, z, y_{<i})$$
+$$P(y_i | x, y_{\lt i}) = \sum_z P(z | x) \cdot P(y_i | x, z, y_{\lt i})$$
 
 **Retriever 상태**:
 - **Query encoder: 학습** (seq2seq loss가 역전파)

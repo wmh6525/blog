@@ -67,8 +67,8 @@ PE가 네트워크 경계(입력/출력 계층)에 집중되고, **중간 계층
 
 $$\lVert \delta_l^{t+1} \rVert \approx \tau_t(\sigma_w) \lVert \delta_l^t \rVert$$
 
-- $\tau_t > 1$: 기하급수적 성장 (폭발)
-- $\tau_t < 1$: 지수적 감쇠 (소실)
+- $\tau_t \gt  1$: 기하급수적 성장 (폭발)
+- $\tau_t \lt  1$: 지수적 감쇠 (소실)
 - 안정 영역($\tau_t \approx 1$)은 네트워크가 깊어질수록 **기하급수적으로 축소**
 
 > 기존 역전파의 gradient vanishing/exploding과 다른 점: EVPE는 **파라미터 업데이트 이전**, 추론 단계 자체에서 발생한다.

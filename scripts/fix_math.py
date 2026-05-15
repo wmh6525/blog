@@ -2,36 +2,62 @@
 """
 Fix LaTeX math expressions in markdown posts.
 
-With Hugo Passthrough enabled, markdown no longer mangles math content,
-so the defensive escapes (\\_ and \\\\\\\\) used to avoid markdown italic/escape
-must be reverted to their proper LaTeX form (_ and \\\\).
+Two fixes applied inside math blocks only:
+  1. "\\_"   -> "_"     (defensive markdown escape no longer needed with Passthrough)
+  2. "\\\\\\\\" -> "\\\\"  (4 backslashes were used to survive markdown)
+  3. raw "<" / ">" -> "\\lt" / "\\gt" (Hugo's HTML parser was eating x_{<t})
 
-This script:
-  1. Finds $...$ and $$...$$ blocks (skipping code fences)
-  2. Replaces inside math:
-     - "\\_" -> "_"
-     - "\\\\\\\\" -> "\\\\"
-  3. Saves the file in place
+Safety guards:
+  - Only process $$...$$ and $...$ that LOOK LIKE math (contain LaTeX commands).
+    Avoids false positives on currency markers like $0, $$, $$$, $$$$ used in tables.
+  - Skip code fences (``` ... ```).
+  - For inline $...$, also skip if the content contains | (markdown table cell).
 """
 
 import re
-import sys
 from pathlib import Path
 
 POSTS_DIR = Path(__file__).parent.parent / "content" / "posts"
 
-# Match $$ ... $$ (display) and $ ... $ (inline)
-# We deliberately avoid matching inside ``` code fences by splitting first
+# DISPLAY math: $$ ... $$
 DISPLAY_RE = re.compile(r"\$\$([\s\S]*?)\$\$")
+# INLINE math: $ ... $ (single line, no $)
 INLINE_RE = re.compile(r"(?<!\$)\$([^\$\n]+?)\$(?!\$)")
+
+# Heuristic: only treat as math if it contains a LaTeX command or structural marker.
+# This avoids matching currency markers ($0, $$, $$$ in tables).
+MATH_LIKE_RE = re.compile(
+    r"\\[a-zA-Z]+"          # \frac, \sum, \mathcal, etc.
+    r"|\\[\\\[\]{}|]"        # \\, \[, \], \{, \}, \|
+    r"|[_^]\{"               # subscript/superscript with braces: x_{i}, x^{i}
+    r"|[_^][a-zA-Z0-9]"      # subscript/superscript single char: x_i, x^i
+    r"|\\\\"                 # \\ for newlines
+)
+
+
+def looks_like_math(content: str) -> bool:
+    """Return True if the captured text looks like real LaTeX math."""
+    if not content.strip():
+        return False
+    # Markdown table rows (with |) inside a "$$...$$" capture indicate
+    # we accidentally matched currency-marker $$ across table cells.
+    if "|" in content and "\n" in content:
+        return False
+    return bool(MATH_LIKE_RE.search(content))
 
 
 def fix_math_content(math: str) -> str:
-    # Only modify inside the math content
-    # \_ -> _   (defensive markdown escape no longer needed)
+    """Apply LaTeX cleanup to math content."""
     fixed = math.replace("\\_", "_")
-    # \\\\ -> \\  (4 backslashes were used to survive markdown; now Passthrough leaves them alone)
     fixed = fixed.replace("\\\\\\\\", "\\\\")
+
+    # Replace raw <, > with KaTeX-safe \lt, \gt to prevent Hugo's HTML parser
+    # from interpreting them as tags. Don't touch:
+    #   - escaped \< (rare in LaTeX, defensive)
+    #   - <=, <! (HTML-comment / comparison)
+    #   - => (arrow), >= (comparison)
+    fixed = re.sub(r"(?<!\\)<(?![=!/])", r"\\lt ", fixed)
+    fixed = re.sub(r"(?<!\\)(?<!=)>", r"\\gt ", fixed)
     return fixed
 
 
@@ -55,6 +81,9 @@ def fix_file(path: Path) -> bool:
         def repl_display(m):
             nonlocal changed
             inner = m.group(1)
+            if not looks_like_math(inner):
+                # leave currency / table-cell markers alone
+                return m.group(0)
             new_inner = fix_math_content(inner)
             if new_inner != inner:
                 changed = True
@@ -63,6 +92,8 @@ def fix_file(path: Path) -> bool:
         def repl_inline(m):
             nonlocal changed
             inner = m.group(1)
+            if not looks_like_math(inner):
+                return m.group(0)
             new_inner = fix_math_content(inner)
             if new_inner != inner:
                 changed = True

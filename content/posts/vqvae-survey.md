@@ -172,7 +172,7 @@ $n_k^{(t)}$는 현재 배치에서 코드 $k$에 할당된 벡터 수. 실제로
 
 VQ-VAE 학습 후, 이산 코드 시퀀스에 대해 **자기회귀 모델**(PixelCNN, Transformer 등)을 학습한다:
 
-$$p(z_1, z_2, \ldots, z_T) = \prod_t p(z_t \mid z_{<t})$$
+$$p(z_1, z_2, \ldots, z_T) = \prod_t p(z_t \mid z_{\lt t})$$
 
 이를 통해 새로운 코드 시퀀스를 생성하고 디코딩하면 새로운 데이터를 생성할 수 있다.
 
@@ -214,9 +214,9 @@ $$z_{bottom} \in \lbrace 1, \ldots, K \rbrace^{H_2 \times W_2} \quad \text{(로�
 
 계층적 자기회귀 모델:
 
-$$p(z_{top}) = \prod_i p(z_{top,i} \mid z_{top,<i})$$
+$$p(z_{top}) = \prod_i p(z_{top,i} \mid z_{top,\lt i})$$
 
-$$p(z_{bottom} \mid z_{top}) = \prod_j p(z_{bottom,j} \mid z_{bottom,<j}, z_{top})$$
+$$p(z_{bottom} \mid z_{top}) = \prod_j p(z_{bottom,j} \mid z_{bottom,\lt j}, z_{top})$$
 
 ### 결과
 
@@ -244,7 +244,7 @@ Straight-Through Estimator 대신 **온도 $\tau$를 점진적으로 낮추는**
 1. **Stage 1**: dVAE로 이미지 → 32×32 이산 코드 (8192 코드북)
 2. **Stage 2**: 텍스트 토큰 + 이미지 코드를 이어붙여 자기회귀 Transformer로 학습
 
-$$p(\text{image codes} \mid \text{text tokens}) = \prod_i p(z_i \mid z_{<i}, \text{text})$$
+$$p(\text{image codes} \mid \text{text tokens}) = \prod_i p(z_i \mid z_{\lt i}, \text{text})$$
 
 ### 의의
 
