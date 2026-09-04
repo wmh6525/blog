@@ -169,7 +169,7 @@ remasking='low_confidence'
 
 논문 본 실험에서는 미사용 (AR 베이스라인과 공정 비교 위해). 구현:
 
-$$\text{logits} = \text{un\_logits} + (\text{cfg\_scale} + 1) \cdot (\text{logits} - \text{un\_logits})$$
+$$\text{logits} = \text{un_logits} + (\text{cfg_scale} + 1) \cdot (\text{logits} - \text{un_logits})$$
 
 ---
 
