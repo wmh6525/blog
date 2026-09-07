@@ -547,4 +547,4 @@ GPU를 켜기 전에 규칙 기반 제출 파일을 먼저 쓴다. 시간이 모
 - 대회: DACON 236754 — 나라장터 공공조달 법령위반 판정
 - 모델: `google/gemma-4-26B-A4B-it` (고정)
 - 서빙: vLLM · NVIDIA L40S ×1 (44.7 GiB)
-- 관련 글: [LLM Harness 최적화·오류](llm-harness-optimization-errors.md) — 프롬프트 민감도, 판정 편향, 평가 하네스 설계
+- 관련 글: [LLM Harness 최적화·오류](../llm-harness-optimization-errors/) — 프롬프트 민감도, 판정 편향, 평가 하네스 설계
