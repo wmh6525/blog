@@ -2,3 +2,7 @@ public/
 resources/
 .hugo_build.lock
 .DS_Store
+
+# 용역/대외비 보고서가 실수로 발행되지 않도록 차단 (nuclear-cpt 등 별도 저장소에서 관리)
+content/posts/*_report.md
+content/posts/*_내부*.md
