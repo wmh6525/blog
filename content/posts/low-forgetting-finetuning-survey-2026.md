@@ -52,13 +52,15 @@ draft: false
 
 LLM 실험과 통제된 toy 실험, 그리고 온폴리시 갱신이 작은 KL 변화를 낳는 이유에 대한 이론을 제시했다.
 
-### 2.2 Self-Distillation Enables Continual Learning (SDFT, 2026.01, ICML 2026)
+### 2.2 Self-Distillation Enables Continual Learning (SDFT, 2026.01)
 
-같은 그룹(Shenfeld·Damani·Hübotter·Agrawal)의 확장. "RL이 덜 잊는 건 온폴리시 덕분인데, 보상 없이 **데모 데이터만 있어도** 온폴리시로 학습할 수 있는가?"에 대한 답이다.
+같은 그룹(Shenfeld·Damani·Hübotter·Agrawal)의 확장. "RL이 덜 잊는 건 온폴리시 덕분인데, 보상 없이 **데모 데이터만 있어도** 온폴리시로 학습할 수 있는가?"에 대한 답이다. (arXiv 프리프린트. ICML 2026으로 소개되곤 하지만 arXiv·PDF·프로젝트 페이지 어디에서도 게재 표기를 확인할 수 없다.)
 
-- 데모를 in-context로 조건화한 모델을 **교사**로 삼고, 학생(같은 모델, 조건 없음)의 온폴리시 샘플에 대해 **reverse-KL**로 교사에 맞춘다.
-- SFT보다 새 과제 정확도가 높고 망각은 크게 줄어, 순차 학습에서 단일 모델이 여러 스킬을 성능 퇴행 없이 누적한다.
-- 비용: 궤적 생성과 토큰별 손실 계산으로 FLOPs·wall-clock 증가.
+- 데모를 in-context로 조건화한 모델을 **교사**(학생의 EMA 가중치)로 삼고, 학생(같은 모델, 조건 없음)의 온폴리시 샘플 위에서 토큰별로 교사 분포에 맞춘다.
+- **손실 방향 주의**: 논문의 이론(신뢰 영역 RL 역산 → 암묵적 보상)은 **reverse-KL** 기준이지만, 저자들은 v2 본문과 저장소 README(2026-04-07)에서 **보고된 결과는 모두 토큰별 forward-KL**(GKD와 유사)로 학습했다고 정정했다. "온폴리시 샘플링"은 맞지만 "reverse-KL로 맞춘다"는 실제 구현과 다르다.
+- SFT보다 새 과제 정확도가 높고 망각은 크게 줄어, 순차 학습에서 단일 모델이 여러 스킬을 누적한다(Qwen2.5-7B 기준 기존 능력 평균 base 65.5 → SDFT 64.5~65.4, SFT 53.4~60.2). 망각이 0은 아니다.
+- 비용: SFT 대비 FLOPs 약 2.5배, wall-clock 약 4배. ICL이 약한 3B에서는 SFT보다 나쁘다.
+- 상세: [SDFT 리뷰](../sdft-self-distillation-review/)
 
 이 논문의 의의는 "온폴리시 증류가 데모 기반 연속학습의 실용적 경로"임을 보인 것이다. SFT는 본질적으로 오프폴리시라는 점을 문제의 근원으로 지목한다.
 
@@ -72,7 +74,7 @@ Qwen2.5-VL-7B-Instruct 멀티모달 연속 후학습에서 RFT가 **멀티태스
 |------|------|
 | **Mechanistic origins of catastrophic forgetting** (2026.05) | 헤드 단위 "differential circuit vulnerability" 지표. Qwen2.5-3B에서 SFT는 빠르게 적응하나 회로 파괴가 크고, RL은 느리지만 기저 회로를 더 보존. 행동 수준(KL) 설명을 회로 수준으로 확장 |
 | **RL Fine-Tuning Heals OOD Forgetting in SFT** (2025.09) | SFT가 깨뜨린 OOD 능력을 후속 RL이 회복. 가중치 특이벡터의 **회전**이 관건, 회전 제어로 OOD 강건성 개선 가능 |
-| **A Quantitative Characterization of Forgetting in Post-Training** (2026.03) | 가우시안 혼합 추상화. **forward-KL은 옛 분포 질량을 0으로 붕괴("mass forgetting")**, **reverse-KL은 질량 보존 + 모드 분리도에 지수적으로 감쇠하는 드리프트**만 발생. SDFT·TTT-Discover·OAPL이 옛 지식을 보존하는 명시적 조건 도출 |
+| **A Quantitative Characterization of Forgetting in Post-Training** (2026.03) | 가우시안 혼합 추상화. **forward-KL은 옛 분포 질량을 0으로 붕괴("mass forgetting")**, **reverse-KL은 질량 보존 + 모드 분리도에 지수적으로 감쇠하는 드리프트**만 발생. SDFT·TTT-Discover·OAPL이 옛 지식을 보존하는 명시적 조건 도출 (SDFT는 reverse-KL로 모델링 — 실제 구현은 forward-KL이라 그대로 적용되지는 않음) |
 | **Mechanistic Analysis of Catastrophic Forgetting** (2026.01) | 2026 초 SOTA 6개 아키텍처 분석. 세 메커니즘: attention 가중치의 그래디언트 간섭, 중간층 표현 드리프트, 손실 지형 평탄화 |
 
 ### 2.5 반론: RL도 잊는다
@@ -184,7 +186,7 @@ Qwen2.5-VL-7B-Instruct 멀티모달 연속 후학습에서 RFT가 **멀티태스
 
 | 레버 | 무엇을 바꾸나 | 대표 | 비용 |
 |------|-------------|------|------|
-| **온폴리시 목적** | 손실 함수 (forward-KL → reverse-KL, 자기 샘플) | RL's Razor, SDFT | 궤적 생성 FLOPs |
+| **온폴리시 목적** | 학습 데이터·목적 (오프폴리시 데모 → 자기 샘플 위 증류/RL) | RL's Razor, SDFT | 궤적 생성 FLOPs |
 | **갱신 격리** | 어느 파라미터에 쓰는가 (희소 슬롯·모듈·직교 부분공간) | SMF, TFGN | 이득 크기 감소, 선택 규칙 설계 |
 | **손실 적응 학습률** | 얼마나 크게 쓰는가 | FINCH, 옵티마이저 일관성 | 거의 없음 |
 
@@ -222,7 +224,7 @@ Qwen2.5-VL-7B-Instruct 멀티모달 연속 후학습에서 RFT가 **멀티태스
 
 ### 계열 ① 온폴리시 목적
 - [RL's Razor: Why On-Policy RL Forgets Less (arXiv:2509.04259, NeurIPS 2025)](https://arxiv.org/abs/2509.04259)
-- [Self-Distillation Enables Continual Learning (arXiv:2601.19897, ICML 2026)](https://arxiv.org/abs/2601.19897)
+- [Self-Distillation Enables Continual Learning (arXiv:2601.19897)](https://arxiv.org/abs/2601.19897)
 - [Reinforcement Fine-Tuning Naturally Mitigates Forgetting in Continual Post-Training (arXiv:2507.05386)](https://arxiv.org/abs/2507.05386)
 - [Mechanistic origins of catastrophic forgetting: why RL preserves circuits better than SFT (arXiv:2605.28860)](https://arxiv.org/abs/2605.28860)
 - [RL Fine-Tuning Heals OOD Forgetting in SFT (arXiv:2509.12235)](https://arxiv.org/abs/2509.12235)
