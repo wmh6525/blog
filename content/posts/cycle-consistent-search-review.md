@@ -9,6 +9,52 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [자료를 찾아 답하는 AI]({{< relref "learn" >}}#rag) · 11/17
+
+모든 질문에 정답을 붙여 학습시키기는 어렵다. 이 연구는 검색한 자료만 보고 원래 질문을 다시 만들어 낼 수 있는지를 간접적인 점수로 쓴다. 질문을 잘 복원하는 자료가 정답 근거이기도 한지, 어디에서 어긋날 수 있는지 함께 읽자.
+
+**먼저 알아둘 말**
+
+- [강화학습·보상]({{< relref "ai-glossary" >}}#rl): 행동의 결과에 대한 보상을 보고 행동 선택 방식을 학습하는 방법. 보상은 무엇을 잘했다고 평가할지 정한 신호다.
+- [정책·롤아웃]({{< relref "ai-glossary" >}}#policy): 정책은 주어진 상황에서 행동을 선택하는 방식이다. 롤아웃은 그 정책으로 행동하고 결과를 받은 과정을 기록한 것이다.
+- [검증·재현]({{< relref "ai-glossary" >}}#evaluation): 검증은 결과가 주장을 뒷받침하는지 확인하는 일이다. 재현은 설명된 방법을 다시 수행해 결과가 나오는지 확인하는 일이다.
+
+**이번 글의 목표:** 검색 결과로 질문을 복원하는 간접 평가 이해하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] Search-R1 — 강화학습으로 LLM에게 '언제, 무엇을 검색할지' 스스로 배우게 하기]({{< relref "posts/search-r1-review" >}}).
+
+보상과 정책이 낯설다면 [강화학습 입문]({{< relref "posts/reinforcement-learning-beginner-guide" >}})의 앞부분을 먼저 읽자.
+
+**본문에서 먼저 볼 순서:** **1. 문제: Search-R1에는 정답이 필요하다** → **2. 핵심 아이디어: 순환 일관성 (Cycle Consistency)** → **4. 정보 누수 방지 — 핵심 기술적 기여**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터의 유사도, 관련/무관 예시의 비교, 검색과 생성의 구분.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347) · [블로그 해설]({{< relref "posts/reinforcement-learning-beginner-guide" >}}) | **개념 준비**: 정책·보상·정책 갱신 | 행동의 확률을 갱신하는 목적과 큰 변경을 제한하는 장치 |
+| 2. [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629) | **개념 준비**: 생각·행동·관측의 반복 | 추론 문장, 도구 호출, 도구 결과의 순서 |
+| 3. [Search-R1: Training LLMs to Reason and Leverage Search Engines with Reinforcement Learning](https://arxiv.org/abs/2503.09516) · [블로그 해설]({{< relref "posts/search-r1-review" >}}) | **개념 준비**: 검색 행동·롤아웃·검색 결과 마스킹 | 모델 행동과 도구 응답이 번갈아 나타나는 학습 경로 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘검색 결과로 질문을 복원하는 간접 평가 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: Cycle-Consistent Search: Question Reconstructability as a Proxy Reward for Search Agent Training
@@ -20,7 +66,7 @@ draft: false
 
 ## 1. 문제: Search-R1에는 정답이 필요하다
 
-Search-R1은 강화학습으로 검색 에이전트를 학습시키는 혁신적 방법이었지만, 한 가지 근본적 한계가 있다:
+Search-R1은 강화학습으로 검색 에이전트를 학습시킨다. 다만 학습에 필요한 정답 라벨이 한계로 남는다.
 
 $$r(x, y) = \text{EM}(a_{\text{pred}}, a_{\text{gold}})$$
 
@@ -65,6 +111,8 @@ $$q \xrightarrow{\pi} \tau \xrightarrow{\phi} \hat{q} \approx q$$
 | **적절한 검색** | 건축가 검색 → 출생지 검색 → 인구 검색 | ✅ 복원 가능 |
 | **불충분한 검색** | 건축가만 찾고 멈춤 | ❌ 인구 부분 복원 불가 |
 | **무관한 검색** | 구조 엔지니어를 건축가로 착각 | ❌ 잘못된 도시로 복원 |
+
+검색 결과에서 원래 질문을 복원할 수 있는지를 보면, 검색 과정이 질문의 정보를 얼마나 남겼는지 간접적으로 점검할 수 있다. 이것이 여기서 쓰는 proxy reward다. 다만 질문을 복원하기 쉬운 결과와 정답을 입증하는 결과가 항상 같지는 않다. 뒤의 정보 누수 방지와 실패 사례는 이 간접 보상이 무엇을 놓칠 수 있는지 보여준다.
 
 ---
 
@@ -326,3 +374,16 @@ CCS:
 ## 13. 핵심 한 줄 요약
 
 > **"좋은 검색 궤적은 원래 질문을 복원할 수 있다"** — 이 단순한 원리 하나로 정답 라벨 없이 Search-R1을 능가하는 검색 에이전트를 학습시킬 수 있다.
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 검색 결과로 질문을 복원하는 간접 평가 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[논문 리뷰\] OPQE — HyDE에 강화학습을 결합한 On-Policy Pseudo-document Query Expansion]({{< relref "posts/opqe-review" >}}) — 가상 문서의 목적이 실제 검색을 돕는 데 있음을 설명하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

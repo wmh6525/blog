@@ -9,6 +9,51 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [여러 빈칸을 복원하며 글 만들기]({{< relref "learn" >}}#diffusion) · 2/5
+
+여러 가능한 토큰 사이에서 어느 쪽이 얼마나 더 가능성이 높은지 비교해 복원 방향을 배우는 방법이다. 이 글은 그 비교를 확률 비율과 손실 함수로 설명한다. 처음에는 비교하는 두 상태가 무엇인지 확인하고 유도는 두 번째에 보자.
+
+**먼저 알아둘 말**
+
+- [확산·디노이징]({{< relref "ai-glossary" >}}#diffusion): 데이터를 훼손하는 과정과 그 훼손을 되돌리는 복원 과정을 다루는 생성 방식. 텍스트에서는 일부 위치를 가리는 방식도 사용한다.
+- [확률 분포]({{< relref "ai-glossary" >}}#distribution): 가능한 결과들에 확률을 나눠 준 표현. 모델은 한 답만 정하는 대신 다음 출력의 여러 가능성을 계산할 수 있다.
+- [손실 함수]({{< relref "ai-glossary" >}}#loss): 예측이 목표에서 얼마나 벗어났는지 계산하는 기준. 학습에서는 보통 이 값을 줄이려 한다.
+
+**이번 글의 목표:** 이산 상태 사이 확률 비율을 학습한다는 뜻 이해하기.
+
+**이 학습 경로의 앞 글:** [\[서베이\] Diffusion Language Model 완전 정복 — Diffusion-LM부터 LLaDA, Mercury, GIDD까지]({{< relref "posts/diffusion-language-models-survey" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **2. 이론적 배경** → **3. 아키텍처** → **8. 한계**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 조건부 확률, 확률 분포, 가리는 과정과 복원 과정; 이론 유도에는 기댓값과 로그.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2006.11239) | **개념 준비**: 노이즈 추가·역방향 복원·확산 단계 | 훼손과 복원을 나눈 생성 과정 그림 |
+| 2. [Structured Denoising Diffusion Models in Discrete State-Spaces](https://arxiv.org/abs/2107.03006) · [블로그 해설]({{< relref "posts/diffusion-language-models-survey" >}}) | **개념 준비**: 이산 상태 전이·마스킹·역확산 | 연속 노이즈 대신 토큰 상태를 바꾸는 과정 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘이산 상태 사이 확률 비율을 학습한다는 뜻 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: Discrete Diffusion Modeling by Estimating the Ratios of the Data Distribution
@@ -45,7 +90,7 @@ $$\frac{dp_{T-t}}{dt} = \bar{Q}_{T-t} p_{T-t}, \qquad \bar{Q}_t(y, x) = \frac{p_
 
 ### 2.2 Concrete Score
 
-비율 $p_t(y)/p_t(x)$가 **concrete score** — 연속의 $\nabla_x \log p_t$의 이산 유사물. 스코어 네트워크가 학습하는 것:
+비율 $p_t(y)/p_t(x)$를 **concrete score**라고 부른다. 연속 공간의 $\nabla_x \log p_t$에 대응하는 이산 공간의 양이다. 스코어 네트워크는 다음 값을 학습한다.
 
 $$s_\theta(x, t)_y \approx \frac{p_t(y)}{p_t(x)} \quad (y \neq x)$$
 
@@ -89,6 +134,8 @@ $\mathcal{L}_{DWDSE}$는 **diffusion weighted denoising score entropy** (forward
 | 정의 | 비대각 = 1, 대각 = $1-N$ | 대각 = -1, 마지막 행 = 1, MASK 열 = 0 |
 | $p_{\text{base}}$ | 균등 분포 | MASK 상태 |
 | 직관 | 모든 토큰으로 전이 | BERT 마스킹 |
+
+연속 공간에서는 입력을 조금 움직였을 때 밀도가 어느 방향으로 변하는지로 score를 읽는다. 이산 공간에서는 그 작은 이동 대신 서로 다른 상태의 확률 비율을 다룬다. 아래 concrete score는 그 비율을 예측하는 양이다. 수식의 현재 상태와 비교 대상 상태를 표시하며 읽으면 네트워크가 어떤 값을 배우고, 그것이 역방향 전이에 어떻게 쓰이는지 따라가기 쉽다.
 
 ---
 
@@ -283,3 +330,16 @@ SEDD가 모든 이산 디퓨전을 **2배 이상** 능가, AR과 **1 perplexity 
 - [SEDD (arXiv:2310.16834)](https://arxiv.org/abs/2310.16834)
 - [코드: github.com/louaaron/Score-Entropy-Discrete-Diffusion](https://github.com/louaaron/Score-Entropy-Discrete-Diffusion)
 - [Aaron Lou 블로그 (discrete diffusion)](https://aaronlou.com/blog/2024/discrete-diffusion/)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 이산 상태 사이 확률 비율을 학습한다는 뜻 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[논문 리뷰\] MDLM 심화 — '마스킹 디퓨전 = 가중 MLM' 정리의 완전 유도와 학습/추론 해부]({{< relref "posts/mdlm-deep-review" >}}) — 가린 정도가 다른 문장을 복원하며 학습하는 흐름 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

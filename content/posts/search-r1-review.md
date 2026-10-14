@@ -9,6 +9,52 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [자료를 찾아 답하는 AI]({{< relref "learn" >}}#rag) · 10/17
+
+질문을 받은 모델이 바로 답하는 대신, 필요한 순간에 검색하고 그 결과를 읽은 뒤 다시 행동한다. 이 검색 행동을 잘했는지 보상으로 평가하며 학습한다. 모델이 쓴 말과 검색 도구가 돌려준 자료를 구분해 따라가자.
+
+**먼저 알아둘 말**
+
+- [에이전트·도구]({{< relref "ai-glossary" >}}#agent): 에이전트는 목표를 위해 행동을 선택하고 그 결과를 보고 다음 행동을 정하는 시스템이다. 도구는 검색이나 코드 실행처럼 호출할 수 있는 기능이다.
+- [강화학습·보상]({{< relref "ai-glossary" >}}#rl): 행동의 결과에 대한 보상을 보고 행동 선택 방식을 학습하는 방법. 보상은 무엇을 잘했다고 평가할지 정한 신호다.
+- [정책·롤아웃]({{< relref "ai-glossary" >}}#policy): 정책은 주어진 상황에서 행동을 선택하는 방식이다. 롤아웃은 그 정책으로 행동하고 결과를 받은 과정을 기록한 것이다.
+
+**이번 글의 목표:** 검색 행동을 보상으로 학습하는 과정 따라가기.
+
+**이 학습 경로의 앞 글:** [\[서베이\] RAG End-to-end 공동 학습 논문 총정리 — ORQA, REALM, RAG, RETRO, Atlas, REPLUG, RA-DIT, Self-RAG]({{< relref "posts/rag-end-to-end-training-survey" >}}).
+
+보상과 정책이 낯설다면 [강화학습 입문]({{< relref "posts/reinforcement-learning-beginner-guide" >}})의 앞부분을 먼저 읽자.
+
+**본문에서 먼저 볼 순서:** **1. 문제: 기존 RAG는 "언제, 무엇을 검색할지" 모른다** → **2. 핵심 아이디어: DeepSeek-R1 + 검색 엔진** → **7. 실험 결과**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터의 유사도, 관련/무관 예시의 비교, 검색과 생성의 구분.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks](https://arxiv.org/abs/2005.11401) · [블로그 해설]({{< relref "posts/rag-survey-2026" >}}) | **개념 준비**: 검색기·생성기·외부 지식 | 질문에서 문서를 검색하고 문서와 함께 답을 만드는 구성 |
+| 2. [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347) · [블로그 해설]({{< relref "posts/reinforcement-learning-beginner-guide" >}}) | **개념 준비**: 정책·보상·정책 갱신 | 행동의 확률을 갱신하는 목적과 큰 변경을 제한하는 장치 |
+| 3. [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629) | **개념 준비**: 생각·행동·관측의 반복 | 추론 문장, 도구 호출, 도구 결과의 순서 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘검색 행동을 보상으로 학습하는 과정 따라가기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: Search-R1: Training LLMs to Reason and Leverage Search Engines with Reinforcement Learning
@@ -85,7 +131,7 @@ Search-R1 확장 — 검색 엔진 $R$과의 상호작용 포함:
 
 $$\max_{\pi_\theta} \mathbb{E}_{x \sim D, y \sim \pi_\theta(\cdot|x; R)} [r_\phi(x, y)] - \beta \cdot D_{KL}[\pi_\theta(\cdot|x; R) \| \pi_{ref}(\cdot|x; R)]$$
 
-궤적 $y$에는 LLM이 생성한 토큰과 검색 엔진이 반환한 토큰이 **모두 포함**.
+궤적 $y$에는 LLM이 생성한 토큰과 검색 엔진이 반환한 토큰이 **모두 포함된다**.
 
 ### 4.2 보상 함수: 놀랍도록 단순
 
@@ -127,6 +173,8 @@ $$I(y_t) = \begin{cases} 1 & \text{LLM이 생성한 토큰} \\ 0 & \text{검색 
 | 최종 성능 (7B) | **0.431** | 0.350 |
 
 PPO가 더 안정적이고 최종 성능이 높다.
+
+한 롤아웃 안에서 모델이 검색 요청을 쓰고, 검색 엔진이 자료를 돌려주고, 모델이 이어서 답한다. 이 토큰들이 같은 대화 기록에 들어 있어도 생성 주체는 다르다. 아래 마스킹은 검색 엔진이 반환한 토큰을 모델의 행동처럼 학습하지 않도록 구분한다. 보상은 최종 결과에서 얻더라도 정책을 갱신할 대상은 모델이 실제로 선택한 행동이어야 한다.
 
 ---
 
@@ -346,3 +394,16 @@ Search-R1 패러다임:
 ```
 
 Search-R1은 RAG의 **"검색 전략을 사람이 설계"하는 패러다임**에서 **"모델이 스스로 학습"하는 패러다임**으로의 전환을 보여준다.
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 검색 행동을 보상으로 학습하는 과정 따라가기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[논문 리뷰\] Cycle-Consistent Search — 정답 라벨 없이 검색 에이전트를 학습시키는 법]({{< relref "posts/cycle-consistent-search-review" >}}) — 검색 결과로 질문을 복원하는 간접 평가 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

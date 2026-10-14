@@ -9,6 +9,49 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [자료를 찾아 답하는 AI]({{< relref "learn" >}}#rag) · 1/17
+
+회사 규정에 대한 질문을 받았다고 생각해 보자. 먼저 관련 문서를 찾고, 그 문서와 질문을 모델에 함께 전달한 뒤 답을 만든다. 이 글은 이 전체 흐름의 지도다. 처음에는 제품 이름보다 검색·자료 선택·답변의 역할을 구분해 읽자.
+
+**먼저 알아둘 말**
+
+- [RAG]({{< relref "ai-glossary" >}}#rag): 질문에 관련된 자료를 검색해 모델에 함께 제공하고 답변을 만드는 방식. 자료를 찾는 단계와 답을 쓰는 단계를 구분해서 본다.
+- [임베딩·벡터]({{< relref "ai-glossary" >}}#embedding): 벡터는 여러 숫자의 묶음이고, 임베딩은 글이나 다른 정보를 그 묶음으로 표현하는 방식이다.
+- [검색기·리랭킹]({{< relref "ai-glossary" >}}#retriever): 검색기는 후보 문서를 찾는다. 리랭킹은 그 후보를 다시 평가해 질문에 더 관련 있는 순서로 정렬한다.
+
+**이번 글의 목표:** 질문·검색·자료·답변의 전체 흐름 잡기.
+
+**이 학습 경로의 앞 글:** [AI 기초 설명]({{< relref "ai-basics" >}}).
+
+**본문에서 먼저 볼 순서:** **10. 프로덕션 아키텍처 (2026)**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터의 유사도, 관련/무관 예시의 비교, 검색과 생성의 구분.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Dense Passage Retrieval for Open-Domain Question Answering](https://arxiv.org/abs/2004.04906) · [블로그 해설]({{< relref "posts/retriever-training-survey" >}}) | **개념 준비**: 질문/문서 인코더·대조 학습·negative | 관련 문서와 오답 문서를 비교하는 학습 데이터 구성 |
+| 2. [Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks](https://arxiv.org/abs/2005.11401) | **개념 준비**: 검색기·생성기·외부 지식 | 질문에서 문서를 검색하고 문서와 함께 답을 만드는 구성 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘질문·검색·자료·답변의 전체 흐름 잡기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 1. RAG의 진화: Naive → Advanced → Modular → Agentic
 
 ### 원조 RAG (Lewis et al., NeurIPS 2020)
@@ -47,6 +90,8 @@ FAIR(Meta)의 Patrick Lewis et al.이 제안. BART + DPR(Dense Passage Retrieval
   ↓
 최종 응답 + 인용 출처
 ```
+
+문서가 들어오는 시점의 처리와 질문이 들어오는 시점의 처리를 나눠 보면 전체 흐름을 잡기 쉽다. 전자는 문서를 청크와 검색 가능한 표현으로 만들고, 후자는 질문에 맞는 청크를 골라 답변에 연결한다. 아래 임베딩·청킹·하이브리드 검색·리랭킹은 이 경로의 서로 다른 지점을 바꾼다. 같은 최종 점수라도 어느 단계에서 개선됐는지 확인해야 다음 선택이 분명해진다.
 
 ---
 
@@ -105,7 +150,7 @@ FAIR(Meta)의 Patrick Lewis et al.이 제안. BART + DPR(Dense Passage Retrieval
 
 $$\text{RRF}(d) = \sum_{q \in Q} \frac{1}{\text{rank}_q(d) + k}, \quad k = 60$$
 
-각 검색 방법에서의 순위를 역수로 합산. 단일 방법 대비 일관되게 성능 향상.
+각 검색 방법의 순위를 역수로 바꿔 합산한다. 단일 방법보다 일관되게 성능이 향상된다.
 
 ---
 
@@ -363,3 +408,16 @@ S&P 500 기업의 엔터프라이즈 RAG 도입이 **2025년에 280% 성장**.
 | RAGAS (arXiv: 2309.15217) | RAG 평가 프레임워크 |
 | Agentic RAG Survey (arXiv: 2501.09136) | 에이전틱 RAG 서베이 |
 | RAG Architectures Survey (arXiv: 2506.00054) | RAG 아키텍처 분류 체계 |
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 질문·검색·자료·답변의 전체 흐름 잡기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[서베이\] RAG의 쿼리 성능을 높이는 모든 방법 — Rewriting, Expansion, Decomposition, Routing부터 RL까지]({{< relref "posts/rag-query-optimization-survey" >}}) — 사용자 질문을 검색하기 좋은 형태로 바꾸기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

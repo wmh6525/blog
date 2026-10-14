@@ -9,6 +9,51 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [도구를 쓰고 실험하는 AI]({{< relref "learn" >}}#agents) · 2/9
+
+연구를 자동화하는 시스템도 문헌 조사까지만 하는 경우와 실제 실험 검증까지 가는 경우가 있다. 이 보고서는 최근의 시스템과 평가를 분류한다. 각 결과가 어느 단계에서 확인됐는지 표시하면 많은 이름을 한꺼번에 외우지 않아도 된다.
+
+**먼저 알아둘 말**
+
+- [에이전트·도구]({{< relref "ai-glossary" >}}#agent): 에이전트는 목표를 위해 행동을 선택하고 그 결과를 보고 다음 행동을 정하는 시스템이다. 도구는 검색이나 코드 실행처럼 호출할 수 있는 기능이다.
+- [검증·재현]({{< relref "ai-glossary" >}}#evaluation): 검증은 결과가 주장을 뒷받침하는지 확인하는 일이다. 재현은 설명된 방법을 다시 수행해 결과가 나오는지 확인하는 일이다.
+- [벤치마크·베이스라인]({{< relref "ai-glossary" >}}#benchmark): 벤치마크는 비교를 위한 시험이고, 베이스라인은 비교의 출발점이 되는 방법이다. 결과는 시험 조건과 함께 읽는다.
+
+**이번 글의 목표:** 계산 결과와 실제 실험 검증을 나눠 읽기.
+
+**이 학습 경로의 앞 글:** [\[심층 분석\] Scientist Agents — AI가 과학자가 되는 길, Sakana부터 Google AI co-scientist까지]({{< relref "posts/scientist-agents-survey" >}}).
+
+검색으로 자료를 가져오는 흐름은 [RAG 전체 흐름]({{< relref "posts/rag-survey-2026" >}})에서 먼저 볼 수 있다.
+
+**본문에서 먼저 볼 순서:** **11. 카테고리별 핵심 표** → **12. 핵심 한 줄 결론** → **E5. 클라우드 Lab + LLM 실제 산업 적용 (2025-2026 핵심 사례)**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 도구 호출의 입력/출력, 실험 설계와 비교 조건, 검증과 재현의 구분.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629) | **개념 준비**: 생각·행동·관측의 반복 | 추론 문장, 도구 호출, 도구 결과의 순서 |
+| 2. [The AI Scientist: Towards Fully Automated Open-Ended Scientific Discovery](https://arxiv.org/abs/2408.06292) · [블로그 해설]({{< relref "posts/scientist-agents-survey" >}}) | **개념 준비**: 가설·실험·결과·논문·평가 | 연구 루프의 단계와 결과를 검증하는 범위 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘계산 결과와 실제 실험 검증을 나눠 읽기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## Executive Summary
 
 > **2025년 1월 Agent Laboratory · 2월 Google AI co-scientist · 4월 AI Scientist v2 · 7월 Stanford Virtual Lab(Nature) — 단 7개월 안에 "AI가 wet lab 검증된 발견을 한다"가 입증됐다. 2026년 1H에는 이미 reproducibility (PaperBench v2, ResearchGym), 안전성 (Hidden Pitfalls, AI Scientist 자기-수정), 도메인 특화(BioCrow, AtomAgents) 세 갈래로 분화 중이다.**
@@ -38,6 +83,8 @@ draft: false
 | 2026.02 | ResearchGym (arXiv 2602.15112) — 실세계 연구 에이전트 벤치마크 |
 | 2026.04 | LAB-Bench v2 (arXiv 2604.09554) — 생명과학 평가 |
 | 2026.04 | MLE-Bench leaderboard frozen by OpenAI (페어니스 개편 중) |
+
+이 보고서의 시스템은 연구 과정의 서로 다른 구간을 자동화한다. 문헌에서 가설을 고르는 결과, 계산 실험으로 검증한 결과, 실제 실험실에서 확인한 결과는 검증의 깊이가 다르다. 아래 카테고리와 벤치마크를 읽을 때는 산출물이 어느 단계까지 확인됐는지 함께 표시하면 좋다. 논문 작성까지 이어지는 흐름과 발견을 독립적으로 재현한 증거도 따로 살펴볼 수 있다.
 
 ---
 
@@ -79,7 +126,7 @@ draft: false
 | o1-mini | $7.51 | 3,617s |
 | o1-preview | $13.10 | 6,201s |
 
-→ AI Scientist v1 ($15) 대비 **84% 비용 절감** (GPT-4o 기준).
+GPT-4o 기준으로 AI Scientist v1 ($15)보다 비용이 **84% 줄었다**.
 
 **평가** (NeurIPS-style, 1-10):
 - o1-preview: 4.0
@@ -931,3 +978,16 @@ MLR-Bench: **~80% agent 실험 결과가 fabricated/invalidated**. AI Scientist�
 - [cf-PICIs bioRxiv](https://www.biorxiv.org/content/10.1101/2025.02.19.639094.full.pdf)
 - [Zochi (Intology)](https://www.intology.ai/blog/zochi-acl)
 - [Carl (Autoscience)](https://www.autoscience.ai/blog/carl-full-paper)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 계산 결과와 실제 실험 검증을 나눠 읽기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[설계론\] Scientist Agents가 같아 보이지만 다른 20가지 — 차별화를 만드는 설계 차원]({{< relref "posts/scientist-agents-design-dimensions" >}}) — 누가 결정하고 어디에 기록하는지로 설계를 비교하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

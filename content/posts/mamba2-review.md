@@ -9,6 +9,51 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [문장을 읽으며 기억하는 모델]({{< relref "learn" >}}#memory) · 5/13
+
+상태를 차례로 갱신하는 계산을 여러 구간으로 나눠 묶어서 계산할 수도 있다. Mamba-2는 같은 계산을 다른 형태로 바라보고 GPU에 맞게 실행하는 방법을 다룬다. 처음에는 계산의 의미와 실행 순서의 차이를 구분하는 데 집중하자.
+
+**먼저 알아둘 말**
+
+- [상태·SSM]({{< relref "ai-glossary" >}}#state): 상태는 이전까지 읽은 정보를 다음 단계에 전달하는 내부 값이다. SSM은 이 상태가 입력에 따라 바뀌고 출력을 만드는 관계를 모델링한다.
+- [Attention]({{< relref "ai-glossary" >}}#attention): 현재 계산에 필요한 다른 위치의 정보를 가중치를 주어 섞는 장치. 가중치가 크다는 사실만으로 판단의 원인을 확정할 수는 없다.
+- [GPU·병렬 처리]({{< relref "ai-glossary" >}}#gpu): GPU는 많은 계산을 함께 처리하는 데 쓰는 장치다. 병렬 처리는 작업을 나눠 동시에 수행하는 방식이다.
+
+**이번 글의 목표:** 같은 계산을 순서대로 하거나 묶어서 하는 관점 이해하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] Mamba: 선택적 상태 공간 모델로 Transformer에 도전하다]({{< relref "posts/mamba-ssm-review" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **1. 핵심 발견: SSM = Structured Attention** → **4. 실험 결과** → **6. 의의와 한계**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터·행렬, 상태의 재귀 갱신, 연속과 이산 시간; 수식 독서에는 미분과 선형대수.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Attention Is All You Need](https://arxiv.org/abs/1706.03762) | **개념 준비**: Attention·위치 정보·인코더/디코더 | 현재 토큰이 다른 위치의 정보를 읽는 구조 그림과 Attention 설명 |
+| 2. [Mamba: Linear-Time Sequence Modeling with Selective State Spaces](https://arxiv.org/abs/2312.00752) · [블로그 해설]({{< relref "posts/mamba-ssm-review" >}}) | **앞선 모델과의 비교**: 입력 의존 상태 갱신·선택 메커니즘 | 입력에 따라 바뀌는 값과 selective scan의 역할 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘같은 계산을 순서대로 하거나 묶어서 하는 관점 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality
@@ -24,7 +69,7 @@ Mamba-2의 가장 중요한 기여는 **이론적 통합**이다.
 
 > **SSM과 어텐션은 본질적으로 동일한 연산의 다른 표현이다.**
 
-이를 **Structured State Space Duality (SSD)**라 부른다.
+이 대응 관계를 **Structured State Space Duality (SSD)**라 부른다.
 
 ### 수학적 연결
 
@@ -44,6 +89,8 @@ $$y_t = \sum_{s=1}^{t} M_{t,s} \cdot x_s$$
 ### Semi-Separable Matrix
 
 행렬 $M$은 **semi-separable matrix** — 하삼각 부분이 저랭크 분해 가능한 행렬이다. 이 구조적 성질이 SSM의 효율적 계산(순환, 컨볼루션)과 어텐션의 병렬 계산을 하나의 프레임워크로 통합한다.
+
+같은 상태 갱신을 재귀 형태로 쓰면 이전 상태를 이어받는 계산으로 보이고, 전체 시퀀스에 펼치면 구조를 가진 행렬 연산으로 보인다. SSD는 이 두 계산을 연결해 읽는 관점이다. 아래 청크 단위 알고리즘은 구간 안의 계산과 구간 사이의 상태 전달을 나눈다. 수학적 대응과 실제 GPU 계산 방식이 어떻게 이어지는지 함께 보면 이해하기 쉽다.
 
 ---
 
@@ -202,3 +249,16 @@ Mamba-2의 SSD 프레임워크는 단순한 "더 빠른 Mamba"를 넘어, **시�
 - Multi-head 구조의 도입으로 Transformer 생태계의 기술(하이브리드, MoE 등)을 SSM에 이식할 수 있게 되었다
 
 실용적으로는 Mamba-2가 "Attention을 완전히 대체"하기보다, **하이브리드의 SSM 컴포넌트**로서 자리잡을 가능성이 높아 보인다.
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 같은 계산을 순서대로 하거나 묶어서 하는 관점 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[논문 리뷰\] Mamba-3: SSM 원리로 추론 효율성의 Pareto 프론티어를 진전시키다]({{< relref "posts/mamba3-review" >}}) — 상태 표현·갱신 근사·입출력 변경을 구분하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

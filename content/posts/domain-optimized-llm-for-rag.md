@@ -9,9 +9,53 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [자료를 찾아 답하는 AI]({{< relref "learn" >}}#rag) · 8/17
+
+자료를 찾아 답하는 시스템이 틀렸을 때, 문서를 못 찾은 것인지 찾고도 답을 못 쓴 것인지부터 나눠 보자. 이 글은 각각의 문제에 어떤 학습 방법을 적용할지 비교한다. 모든 방법을 한 번에 붙이기보다 바꾸려는 단계에 표시하며 읽으면 된다.
+
+**먼저 알아둘 말**
+
+- [RAG]({{< relref "ai-glossary" >}}#rag): 질문에 관련된 자료를 검색해 모델에 함께 제공하고 답변을 만드는 방식. 자료를 찾는 단계와 답을 쓰는 단계를 구분해서 본다.
+- [파인튜닝·SFT]({{< relref "ai-glossary" >}}#finetuning): 파인튜닝은 이미 학습한 모델을 추가 데이터로 더 학습시키는 일이다. SFT는 입력과 목표 답의 예시를 이용하는 지도 파인튜닝이다.
+- [사전학습·CPT]({{< relref "ai-glossary" >}}#cpt): 사전학습은 기본적인 표현과 예측 능력을 학습하는 단계다. CPT는 이 사전학습을 추가 데이터로 이어가는 방식이다.
+
+**이번 글의 목표:** 검색 문제와 답변 문제에 맞는 학습 방법 구분하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] RAFT — '오픈북 시험 준비'처럼 LLM을 도메인 RAG에 최적화하기]({{< relref "posts/raft-review" >}}).
+
+**본문에서 먼저 볼 순서:** **0. 전체 조감도: 경량 → 중량 순서** → **1. Continued Pre-training (CPT) / Domain-Adaptive Pre-training** → **2. Supervised Fine-Tuning (SFT) for RAG**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터의 유사도, 관련/무관 예시의 비교, 검색과 생성의 구분.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks](https://arxiv.org/abs/2005.11401) · [블로그 해설]({{< relref "posts/rag-survey-2026" >}}) | **개념 준비**: 검색기·생성기·외부 지식 | 질문에서 문서를 검색하고 문서와 함께 답을 만드는 구성 |
+| 2. [Training language models to follow instructions with human feedback](https://arxiv.org/abs/2203.02155) · [블로그 해설]({{< relref "posts/reinforcement-learning-beginner-guide" >}}) | **개념 준비**: SFT·선호 데이터·보상 모델·RLHF | 지도 학습, 보상 학습, 정책 학습을 나눈 구성도 |
+| 3. [RAFT: Adapting Language Model to Domain Specific RAG](https://arxiv.org/abs/2403.10131) · [블로그 해설]({{< relref "posts/raft-review" >}}) | **개념 준비**: 정답/방해 문서·근거를 읽는 SFT | 문서를 함께 넣는 학습 예시와 답변 근거 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘검색 문제와 답변 문제에 맞는 학습 방법 구분하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 0. 전체 조감도: 경량 → 중량 순서
 
-도메인 특화 RAG LLM을 구축하는 접근법은 **비용과 복잡도** 순서로 정리하면 다음과 같다.
+도메인 특화 RAG LLM을 만드는 방법을 **비용과 복잡도**가 낮은 것부터 정리했다.
 
 | 단계 | 접근법 | 비용 | 기대 향상 | 주요 논문 |
 |------|--------|------|----------|----------|
@@ -23,6 +67,8 @@ draft: false
 | 5 | **DPO/RLHF** | $$$ | +10-20% 충실도 | Rafailov et al. 2023, SimPO |
 | 6 | **Continued Pre-training** | $$$$ | +10-30% 도메인 이해 | Don't Stop Pretraining, BloombergGPT |
 | 7 | **Knowledge Distillation** | $$$ | 90-99% 교사 성능 유지 | InstructRetro |
+
+RAG 답변이 틀렸다면 관련 문서가 검색됐는지부터 확인할 수 있다. 문서가 없으면 검색 쪽을, 문서가 있는데도 답을 못 쓰면 생성 쪽을 살펴본다. 아래 방법들은 이 두 지점을 서로 다른 비용으로 고친다. 같은 ‘도메인 최적화’라는 이름으로 묶여 있어도 검색기 학습, 문서 활용 학습, 모델 자체의 지식 학습을 나눠 비교해야 적용 목적이 분명해진다.
 
 ---
 
@@ -1014,3 +1060,16 @@ GritLM이 보여준 방향:
 23. Yu et al., "Chain-of-Note: Enhancing Robustness in RALMs," EMNLP 2024. arXiv:2311.09210
 24. Yan et al., "Corrective Retrieval Augmented Generation," arXiv:2401.15884
 25. Wu et al., "ClashEval: Quantifying the tug-of-war between LLM's internal prior and external evidence," arXiv:2404.10198
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 검색 문제와 답변 문제에 맞는 학습 방법 구분하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[서베이\] RAG End-to-end 공동 학습 논문 총정리 — ORQA, REALM, RAG, RETRO, Atlas, REPLUG, RA-DIT, Self-RAG]({{< relref "posts/rag-end-to-end-training-survey" >}}) — 검색기와 답변기의 학습 신호가 연결되는 방식 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

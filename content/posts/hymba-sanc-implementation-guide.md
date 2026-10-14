@@ -9,6 +9,52 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [문장을 읽으며 기억하는 모델]({{< relref "learn" >}}#memory) · 13/13
+
+작은 입력을 묶고, 그 묶음을 기억하며, 다음 묶음을 예측하는 장치들을 연결하는 설계다. 한 단계의 출력이 다음 단계의 입력이 되므로 경계를 바꾸면 뒤의 작업도 바뀐다. 먼저 모듈 사이의 연결을 이해하고 손실 함수는 그다음에 읽자.
+
+**먼저 알아둘 말**
+
+- [패치·청크]({{< relref "ai-glossary" >}}#patch): 작은 단위 여러 개를 한 묶음으로 만든 것. 이미지 패치, 바이트 패치, 문서 청크는 서로 다른 대상을 묶는다.
+- [상태·SSM]({{< relref "ai-glossary" >}}#state): 상태는 이전까지 읽은 정보를 다음 단계에 전달하는 내부 값이다. SSM은 이 상태가 입력에 따라 바뀌고 출력을 만드는 관계를 모델링한다.
+- [손실 함수]({{< relref "ai-glossary" >}}#loss): 예측이 목표에서 얼마나 벗어났는지 계산하는 기준. 학습에서는 보통 이 값을 줄이려 한다.
+
+**이번 글의 목표:** 청킹·기억·상위 예측을 모듈로 연결하는 설계 따라가기.
+
+**이 학습 경로의 앞 글:** [SancMamba: 바이트 수준 계층적 시퀀스 압축 언어 모델 설계기 (1)]({{< relref "posts/sanc-mamba-week1" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **4. 핵심 모듈 설계** → **9. 프로젝트 디렉토리 구조**.
+
+이 글은 구현을 다루는 심화 글이다. 첫 독서에서는 설명과 함수의 역할을 보고, Python과 해당 라이브러리를 익힌 뒤 코드와 수식을 다시 따라가자.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터·행렬, 상태의 재귀 갱신, 연속과 이산 시간; 수식 독서에는 미분과 선형대수.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Attention Is All You Need](https://arxiv.org/abs/1706.03762) | **개념 준비**: Attention·위치 정보·인코더/디코더 | 현재 토큰이 다른 위치의 정보를 읽는 구조 그림과 Attention 설명 |
+| 2. [Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality](https://arxiv.org/abs/2405.21060) · [블로그 해설]({{< relref "posts/mamba2-review" >}}) | **개념 준비**: 구조화된 Attention·상태 공간 이중성·청크 계산 | 재귀와 행렬 표현의 대응, 청크 안과 청크 사이 계산 |
+| 3. [Dynamic Chunking for End-to-End Hierarchical Sequence Modeling](https://arxiv.org/abs/2507.07955) · [블로그 해설]({{< relref "posts/hnet-review" >}}) | **개념 준비**: 학습된 경계·계층적 압축·E2E | 경계 선택이 전체 학습에 연결되는 구조 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘청킹·기억·상위 예측을 모듈로 연결하는 설계 따라가기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 1. 프로젝트 개요
 
 ### 목표
@@ -36,6 +82,8 @@ draft: false
 - Hymba의 어텐션 헤드 → SANC의 "고해상도 리콜" (단기 기억 / 정밀 검색)
 - Hymba의 SSM 헤드 + 유동 청킹 → SANC의 "게슈탈트 형성과 압축" (장기 기억 / 개념 네트워크)
 - 두 경로가 병렬로 실행되어 상보적으로 동작
+
+이 설계에는 바이트를 묶는 문제와 묶인 개념 사이를 예측하는 문제가 함께 들어 있다. 두 단계가 모두 학습되면 경계가 바뀔 때 상위 모델이 받는 입력도 바뀐다. 그래서 구현에서는 각 모듈의 입력·출력과 손실이 연결되는 위치를 먼저 분명히 해야 한다. 아래 마일스톤은 청킹, 표현, 예측을 단계별로 확인하기 위한 작업 순서로 읽으면 된다.
 
 ---
 
@@ -95,7 +143,7 @@ Phase 9: 개념 → 토큰      ConceptDecoder: C4 → "그래서 피곤했다"
 
 ### 4.1 유동 경계 감지기 (AdaptiveBoundaryDetector)
 
-SSM이 시퀀스를 읽으면서 "의미적 전환점"을 감지하는 모듈.
+SSM이 시퀀스를 읽으며 ‘의미적 전환점’을 감지하는 모듈이다.
 
 ```python
 class AdaptiveBoundaryDetector(nn.Module):
@@ -268,3 +316,16 @@ hymba-sanc/
 | SANC(E3) 논문 | arXiv:2601.08224 |
 | Mamba GitHub | github.com/state-spaces/mamba |
 | Mamba-2 논문 | arXiv:2405.21060 |
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 청킹·기억·상위 예측을 모듈로 연결하는 설계 따라가기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+이 경로의 마지막 글이다. [학습 순서]({{< relref "learn" >}})로 돌아가 다른 경로를 고르거나, 어려웠던 수식·코드 부분을 다시 읽어 보자.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

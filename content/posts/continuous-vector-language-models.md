@@ -9,6 +9,52 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [작은 단위를 묶어 표현하기]({{< relref "learn" >}}#representation) · 8/10
+
+다음 단어 조각 대신 다음 문장이나 생각의 중간 표현을 숫자 묶음으로 예측할 수 있을까? 이 글은 그 방향의 여러 방법을 비교한다. 무엇을 예측하고 그 결과를 어떻게 읽을 수 있는 글로 바꾸는지를 함께 확인하자.
+
+**먼저 알아둘 말**
+
+- [잠재 표현]({{< relref "ai-glossary" >}}#latent): 모델 내부에서 사용하는 중간 표현. 사람이 읽는 문장이나 그림 그대로가 아니라 계산을 위한 형태다.
+- [임베딩·벡터]({{< relref "ai-glossary" >}}#embedding): 벡터는 여러 숫자의 묶음이고, 임베딩은 글이나 다른 정보를 그 묶음으로 표현하는 방식이다.
+- [자기회귀·자회귀]({{< relref "ai-glossary" >}}#autoregressive): 이미 나온 내용을 바탕으로 다음 단위를 예측하는 방식. 언어 모델에서는 다음 토큰을 이어서 만드는 과정으로 생각하면 된다.
+
+**이번 글의 목표:** 다음 글 조각 대신 중간 벡터를 예측한다는 뜻 이해하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] SONAR — 200개 언어 + 음성을 하나의 1024차원 공간에 통합한 다국어 임베딩]({{< relref "posts/sonar-review" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **7. 왜 연속이 매력적인가? — 8가지 동기** → **8. 트레이드오프와 한계** → **11. 핵심 한 줄 요약**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터 표현, 압축과 복원, 시퀀스 길이; 잠재 분포를 다루는 글은 확률.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [SONAR: Sentence-Level Multimodal and Language-Agnostic Representations](https://arxiv.org/abs/2308.11466) · [블로그 해설]({{< relref "posts/sonar-review" >}}) | **개념 준비**: 문장 벡터·복원·텍스트와 음성의 정렬 | 문장 정보를 하나의 벡터에 모으는 병목 구조 |
+| 2. [Auto-Encoding Variational Bayes](https://arxiv.org/abs/1312.6114) · [블로그 해설]({{< relref "posts/vqvae-survey" >}}) | **개념 준비**: 잠재 분포·인코더/디코더·재구성 | 입력에서 잠재 표현을 만들고 복원하는 흐름 |
+| 3. [Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2006.11239) | **개념 준비**: 노이즈 추가·역방향 복원·확산 단계 | 훼손과 복원을 나눈 생성 과정 그림 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘다음 글 조각 대신 중간 벡터를 예측한다는 뜻 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 왜 연속 공간인가?
 
 표준 LLM은 **이산 토큰**을 예측한다:
@@ -25,13 +71,15 @@ $$P(x_t | x_{\lt t}) = \text{softmax}(W \cdot h_t)$$
 왜 언어만 이산 토큰에 갇혀 있어야 하는가?
 ```
 
-이 질문에서 출발한 연구 흐름이 **연속 의미 공간 예측 LM**이다. 30+ 논문을 5가지 방향으로 정리한다:
+이 질문에서 출발한 **연속 의미 공간 예측 LM** 연구를 살펴본다. 30+ 논문을 5가지 방향으로 나눠 정리했다.
 
 1. **문장 수준 연속 예측** — LCM, SONAR
 2. **토큰 묶음 연속 자회귀** — CALM
 3. **연속 추론 (Latent CoT)** — Coconut, CoCoMix, Soft Thinking
 4. **연속 확산 LM** — Diffusion-LM, LLaDA, Mercury
 5. **JEPA 스타일 (LeCun)** — LLM-JEPA, VL-JEPA
+
+일반적인 토큰 LM도 내부에서는 연속 벡터를 계산한다. 이 글이 다루는 차이는 예측 대상 자체를 문장·패치·추론 상태 같은 연속 표현으로 두는 데 있다. 그래서 각 방법을 읽을 때는 무엇을 벡터로 예측하는지, 그 벡터에서 실제 언어 출력을 어떻게 복원하는지까지 함께 따라가야 한다.
 
 ---
 
@@ -474,3 +522,16 @@ Azure AI Foundry, AWS Bedrock에서 사용 가능.
 - [Latent Reasoning Survey (arXiv:2507.06203)](https://arxiv.org/abs/2507.06203)
 - [Latent CoT Survey (arXiv:2505.16782)](https://arxiv.org/abs/2505.16782)
 - [NTP Alternatives Survey (arXiv:2509.24435)](https://arxiv.org/abs/2509.24435)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 다음 글 조각 대신 중간 벡터를 예측한다는 뜻 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[심화 리뷰\] CALM + Tencent WeChat AI 시리즈 — Scoring Rules · Patch Training · EAR · CALM 모든 수식 완전 해부]({{< relref "posts/calm-tencent-series-review" >}}) — 묶음 표현·예측 목표·출력 복원의 관계 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

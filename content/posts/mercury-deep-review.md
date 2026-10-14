@@ -9,6 +9,52 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [여러 빈칸을 복원하며 글 만들기]({{< relref "learn" >}}#diffusion) · 5/5
+
+여러 위치를 함께 예측할 수 있어도 문장을 완성하려면 복원 단계를 반복할 수 있다. 이 글은 상용 확산 모델의 공개된 구조와 속도 결과를 다룬다. 병렬이라는 말만 보지 말고 출력 길이와 실행 조건을 함께 확인하자.
+
+**먼저 알아둘 말**
+
+- [확산·디노이징]({{< relref "ai-glossary" >}}#diffusion): 데이터를 훼손하는 과정과 그 훼손을 되돌리는 복원 과정을 다루는 생성 방식. 텍스트에서는 일부 위치를 가리는 방식도 사용한다.
+- [지연·처리량]({{< relref "ai-glossary" >}}#latency): 지연은 요청 하나의 결과를 기다리는 시간이고, 처리량은 일정 시간에 처리하는 작업의 양이다. 둘은 같은 지표가 아니다.
+- [벤치마크·베이스라인]({{< relref "ai-glossary" >}}#benchmark): 벤치마크는 비교를 위한 시험이고, 베이스라인은 비교의 출발점이 되는 방법이다. 결과는 시험 조건과 함께 읽는다.
+
+**이번 글의 목표:** 병렬 생성의 속도를 조건과 반복 횟수로 해석하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] LLaDA — 8B 마스킹 디퓨전 LLM, 데이터·하이퍼파라미터·학습/추론 완전 해부]({{< relref "posts/llada-review" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **3. 아키텍처** → **5. 추론 / 샘플링 (핵심 — 헤드라인)** → **8. 한계 / 비공개 사항**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 조건부 확률, 확률 분포, 가리는 과정과 복원 과정; 이론 유도에는 기댓값과 로그.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Structured Denoising Diffusion Models in Discrete State-Spaces](https://arxiv.org/abs/2107.03006) · [블로그 해설]({{< relref "posts/diffusion-language-models-survey" >}}) | **개념 준비**: 이산 상태 전이·마스킹·역확산 | 연속 노이즈 대신 토큰 상태를 바꾸는 과정 |
+| 2. [Discrete Diffusion Modeling by Estimating the Ratios of the Data Distribution](https://arxiv.org/abs/2310.16834) · [블로그 해설]({{< relref "posts/sedd-deep-review" >}}) | **개념 준비**: concrete score·확률 비율·score entropy | 비교하는 상태와 학습하는 비율의 정의 |
+| 3. [Simple and Effective Masked Diffusion Language Models](https://arxiv.org/abs/2406.07524) · [블로그 해설]({{< relref "posts/mdlm-deep-review" >}}) | **개념 준비**: 마스킹 손실·복원·출력 제약 | 가린 토큰에 집중하는 학습과 샘플링 규칙 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘병렬 생성의 속도를 조건과 반복 횟수로 해석하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: Mercury: Ultra-Fast Language Models Based on Diffusion
@@ -30,7 +76,7 @@ draft: false
 
 ### 학술 → 상용의 다리
 
-기존 디퓨전 LLM(D3PM, SEDD, MDLM, LLaDA)은 모두 학술 규모. Mercury는 **상용 제품으로 배포된 최초**.
+기존 디퓨전 LLM(D3PM, SEDD, MDLM, LLaDA)은 모두 학술 규모였다. Mercury는 이 계열에서 **처음으로 상용 제품으로 배포됐다**.
 
 ### 창업자 배경 (핵심 서사)
 
@@ -40,7 +86,7 @@ draft: false
 | **Volodymyr Kuleshov** (Cornell) | **MDLM** 등 masked diffusion 주역 |
 | **Aditya Grover** (UCLA) | 생성 모델·의사결정 모델 |
 
-세 명이 10년+ 함께 연구. Inception Labs는 약 5천만 달러 펀딩.
+세 명은 10년+ 함께 연구했다. Inception Labs는 약 5천만 달러를 투자받았다.
 
 > **의의**: SEDD + MDLM 저자들이 직접 학술 알고리즘을 상용화. "디퓨전 LM의 wall-clock 속도 개선 실패"라는 학계 미해결 과제를 실제 제품에서 해결.
 
@@ -76,6 +122,8 @@ Mercury:    노이즈에서 시작 → 여러 토큰 병렬 예측
             → coarse-to-fine 반복 정제
             → 전역 관점에서 실수/할루시네이션 수정 가능
 ```
+
+병렬 생성에서는 한 단계에 여러 위치를 다룰 수 있지만, 문장을 완성하기까지 여러 복원 단계가 필요할 수 있다. 따라서 속도 표를 읽을 때는 출력 길이와 단계 수, 실행 조건을 함께 확인해야 한다. 아래 구조 설명은 공개된 범위에서 생성 경로를 정리한 것이다. 비공개 학습 설정은 그 경로만 보고 역으로 확정할 수 없다.
 
 ---
 
@@ -240,3 +288,16 @@ Mercury:    노이즈에서 시작 → 여러 토큰 병렬 예측
 - [Mercury (arXiv:2506.17298)](https://arxiv.org/abs/2506.17298)
 - [Inception Labs 공식 블로그](https://www.inceptionlabs.ai/blog/introducing-mercury)
 - [AWS — Mercury on Bedrock & SageMaker](https://aws.amazon.com/blogs/machine-learning/mercury-foundation-models-from-inception-labs-are-now-available-in-amazon-bedrock-marketplace-and-amazon-sagemaker-jumpstart/)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 병렬 생성의 속도를 조건과 반복 횟수로 해석하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+이 경로의 마지막 글이다. [학습 순서]({{< relref "learn" >}})로 돌아가 다른 경로를 고르거나, 어려웠던 수식·코드 부분을 다시 읽어 보자.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

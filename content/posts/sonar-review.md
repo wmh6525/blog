@@ -9,6 +9,51 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [작은 단위를 묶어 표현하기]({{< relref "learn" >}}#representation) · 7/10
+
+서로 다른 언어로 같은 뜻을 말한 문장을 가까운 숫자 표현으로 나타내려는 모델이다. 음성도 이 표현과 연결한다. 문장 하나를 벡터 하나에 담으면 무엇을 편하게 비교할 수 있고 어떤 세부 정보가 줄어들 수 있는지 살펴보자.
+
+**먼저 알아둘 말**
+
+- [임베딩·벡터]({{< relref "ai-glossary" >}}#embedding): 벡터는 여러 숫자의 묶음이고, 임베딩은 글이나 다른 정보를 그 묶음으로 표현하는 방식이다.
+- [인코더·디코더]({{< relref "ai-glossary" >}}#encoder): 인코더는 입력을 다른 표현으로 바꾸고, 디코더는 그 표현에서 출력을 만든다. 구체적인 역할은 모델 구조에 따라 달라진다.
+- [압축·병목]({{< relref "ai-glossary" >}}#compression): 정보를 더 작은 표현에 담는 일. 저장량과 계산량을 줄일 수 있지만 어떤 정보가 남는지도 확인해야 한다.
+
+**이번 글의 목표:** 서로 다른 언어의 문장을 같은 벡터 공간에 두는 목적 이해하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] BLT-D — Byte Latent Transformer에 블록 디퓨전을 결합해 추론을 92% 가속]({{< relref "posts/blt-d-review" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **3. 핵심 아이디어** → **4. 아키텍처** → **8. 실험 결과**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 문장 임베딩, 번역 인코더/디코더, 압축된 벡터에서 복원하기, 교사/학생 정렬.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Massively Multilingual Sentence Embeddings for Zero-Shot Cross-Lingual Transfer and Beyond](https://arxiv.org/abs/1812.10464) | **개념 준비**: 문장 임베딩·다국어 공유 공간 | 여러 언어의 문장을 공유 표현으로 만드는 목적 |
+| 2. [No Language Left Behind: Scaling Human-Centered Machine Translation](https://arxiv.org/abs/2207.04672) | **모델 기반 이해**: 다국어 번역·인코더/디코더 | 다른 언어 사이 정보를 전달하는 번역 모델 구성 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘서로 다른 언어의 문장을 같은 벡터 공간에 두는 목적 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: SONAR: Sentence-Level Multimodal and Language-Agnostic Representations
@@ -74,6 +119,8 @@ Omnilingual SONAR (1,560+ 언어, 2026.03)
   - ... 200개 언어 어느 쪽으로든
 ```
 
+문장 하나가 벡터 하나로 압축되면 입력 길이와 무관하게 같은 형태의 표현을 얻는다. 이 표현으로 언어와 음성을 연결하려면 서로 대응하는 의미가 가까운 위치에 놓여야 한다. 아래 병목 구조와 여러 손실은 압축된 벡터에 그 정보를 남기는 학습 장치다. 임베딩의 유사도를 쓰는 과제와 벡터를 다시 문장으로 복원하는 과제도 구분해 읽으면 활용 범위가 보인다.
+
 ---
 
 ## 4. 아키텍처
@@ -120,7 +167,7 @@ Omnilingual SONAR (1,560+ 언어, 2026.03)
 | 레이어 | 24-layer Transformer 디코더 (NLLB와 동일) |
 | **핵심 변형** | **단일 1024-dim 벡터에만 cross-attention** |
 
-기존 NLLB 디코더는 인코더의 가변 길이 시퀀스에 cross-attention. SONAR는 **단일 벡터(병목)**에만 어텐드 — 모든 정보가 그 벡터에 압축되도록 강제.
+기존 NLLB 디코더는 인코더의 가변 길이 시퀀스에 cross-attention을 적용한다. SONAR는 **단일 벡터(병목)**만 참조하게 해 모든 정보가 그 벡터에 압축되도록 한다.
 
 ### Speech Encoder
 
@@ -569,3 +616,16 @@ SONAR
 ### 선행
 - [LASER (Schwenk 2017)](https://github.com/facebookresearch/LASER)
 - [NLLB-200 (arXiv:2207.04672)](https://arxiv.org/abs/2207.04672)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 서로 다른 언어의 문장을 같은 벡터 공간에 두는 목적 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[서베이\] 연속 의미 공간에서 예측하는 언어 모델 — Discrete Token을 넘어서 (LCM, Coconut, CALM, Diffusion LM, JEPA)]({{< relref "posts/continuous-vector-language-models" >}}) — 다음 글 조각 대신 중간 벡터를 예측한다는 뜻 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

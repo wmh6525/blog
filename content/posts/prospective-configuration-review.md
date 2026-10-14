@@ -9,6 +9,50 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [역전파를 바꾸면 무엇이 달라질까?]({{< relref "learn" >}}#no-bp) · 3/7
+
+모델 안의 현재 상태를 먼저 조정한 뒤, 그 상태를 바탕으로 가중치를 학습하는 순서를 다룬다. 지금 입력에만 쓰이는 상태와 다음 입력에도 적용될 숫자를 구분하자. 두 단계에서 무엇을 고치는지 알면 알고리즘의 순서가 보인다.
+
+**먼저 알아둘 말**
+
+- [Predictive Coding·예측 오차]({{< relref "ai-glossary" >}}#pc): 각 층의 예측과 현재 상태의 차이를 이용해 상태와 가중치를 조정하는 계산 방식. 상태 조정과 가중치 학습의 순서를 구분해 본다.
+- [상태·SSM]({{< relref "ai-glossary" >}}#state): 상태는 이전까지 읽은 정보를 다음 단계에 전달하는 내부 값이다. SSM은 이 상태가 입력에 따라 바뀌고 출력을 만드는 관계를 모델링한다.
+- [파라미터·가중치]({{< relref "ai-glossary" >}}#parameter): 모델 안에서 학습으로 조정하는 숫자. 모든 내부 숫자가 항상 학습 대상인 것은 아니다.
+
+**이번 글의 목표:** 현재 상태를 먼저 조정하고 학습하는 순서 이해하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] Forward-Forward Algorithm: 역전파 없이 두 번의 Forward Pass로 학습하기]({{< relref "posts/forward-forward-review" >}}).
+
+**본문에서 먼저 볼 순서:** **1. 핵심 아이디어: 순서가 다르다** → **2. 수학적 구조** → **6. 실험 결과**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 손실 함수, 미분·연쇄법칙, 가중치와 활성값의 구분; 에너지 기반 방법은 최적화와 수렴.
+
+예측 오차·활성값·가중치와 역전파를 먼저 구분하자. EqProp은 상태를 안정화한 뒤 학습하는 방식의 비교 독서다. 두 알고리즘이 같다는 뜻은 아니다.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Equilibrium Propagation: Bridging the Gap Between Energy-Based Models and Backpropagation](https://arxiv.org/abs/1602.05179) | **개념 준비**: 에너지·평형 상태·두 단계 학습 | 자유 상태와 목표로 살짝 유도한 상태의 비교 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘현재 상태를 먼저 조정하고 학습하는 순서 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: Inferring Neural Activity Before Plasticity: A Foundation for Learning Beyond Backpropagation
@@ -21,7 +65,7 @@ draft: false
 
 ## 1. 핵심 아이디어: 순서가 다르다
 
-BP와 Prospective Configuration(PC)의 근본적 차이는 **학습의 순서**이다.
+BP와 Prospective Configuration(PC)은 **학습의 순서**가 다르다.
 
 | 단계 | Backpropagation | Prospective Configuration |
 |------|----------------|--------------------------|
@@ -29,10 +73,12 @@ BP와 Prospective Configuration(PC)의 근본적 차이는 **학습의 순서**�
 | 2 | Backward pass (gradient 계산) | **Inference relaxation** (모든 층 동시 조정) |
 | 3 | Weight update (global gradient) | Weight update (**local Hebbian rule**) |
 
-**BP**: 가중치를 먼저 바꾸고, 활성값이 따라간다.
+**BP**: 가중치를 먼저 바꾸고 활성값이 따라간다.
 **PC**: **활성값을 먼저 바꾸고**(prospective), 가중치가 따라간다.
 
 비유하면, BP는 "일단 벽을 부수고 결과를 봄"이고, PC는 "먼저 완성된 모습을 상상하고, 그에 맞게 벽돌을 놓음"이다.
+
+상태를 조정한다는 것은 현재 입력에서 각 층의 활성값을 바꾸는 일이고, 가중치를 바꾼다는 것은 이후 입력에도 적용될 규칙을 학습하는 일이다. Prospective Configuration에서는 먼저 전자를 수행한 뒤 그 상태를 바탕으로 후자를 진행한다. 아래 에너지와 target alignment 설명은 이 두 단계가 어떤 목적을 공유하는지 따라가는 과정이다.
 
 ---
 
@@ -132,7 +178,7 @@ Input: data x, label y, weights w, γ(inference rate), α(learning rate), T step
      w_l ← w_l + Δw_l
 ```
 
-**Incremental 변형 (iPC)**: inference loop 내에서 매 step weight update도 동시 수행하며, 수렴이 보장된다.
+**Incremental 변형 (iPC)**: inference loop 내에서 매 step weight update도 동시 수행하며 수렴이 보장된다.
 
 ---
 
@@ -150,7 +196,7 @@ FashionMNIST 기준, fully connected network:
 | **적은 데이터** | 과적합 | **더 나은 일반화** | PC |
 | **강화학습** (Acrobot 등) | 보통 | **더 높은 보상** | PC |
 
-핵심: 표준 설정에서는 동등하지만, **생물학적으로 현실적인 조건**(online, continual, few-shot)에서 PC가 우위를 보인다.
+핵심: 표준 설정에서는 동등하지만 **생물학적으로 현실적인 조건**(online, continual, few-shot)에서 PC가 우위를 보인다.
 
 ---
 
@@ -201,3 +247,16 @@ FashionMNIST 기준, fully connected network:
 Prospective Configuration의 "먼저 상상하고, 그다음 굳힌다"는 아이디어는 직관적으로 매력적이다. Meta-PCN과 함께 읽으면, Predictive Coding 계열이 깊은 네트워크 학습에서 역전파의 근본적 한계를 어떻게 우회하는지 그림이 그려진다.
 
 특히 **continual learning에서의 우위**는 실용적으로 중요하다. 실제 세계에서 데이터는 i.i.d.가 아니며, 새로운 정보를 기존 지식과 통합하는 능력은 AGI로 가는 핵심 요소다. PC가 이 문제에서 구조적 이점을 가진다는 것은, 단순한 "BP 대안" 이상의 의미를 가진다.
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 현재 상태를 먼저 조정하고 학습하는 순서 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[논문 리뷰\] Meta-PCN: Meta Prediction Error를 활용한 안정적이고 확장 가능한 Deep Predictive Coding Networks]({{< relref "posts/meta-pcn-review" >}}) — 층마다 예측 오차가 다를 때 생기는 문제 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

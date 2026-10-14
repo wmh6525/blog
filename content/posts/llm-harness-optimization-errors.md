@@ -9,6 +9,52 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [도구를 쓰고 실험하는 AI]({{< relref "learn" >}}#agents) · 6/9
+
+같은 모델도 질문을 어떻게 전달하고 결과를 어떻게 채점하느냐에 따라 점수가 달라질 수 있다. 이 글은 모델 바깥의 실행·평가 절차에서 생기는 오류를 다룬다. 입력 형식, 실행 환경, 채점 기준을 나눠 표시하며 읽으면 된다.
+
+**먼저 알아둘 말**
+
+- [하네스]({{< relref "ai-glossary" >}}#harness): 모델에 입력을 만들고, 실행하고, 결과를 평가하는 바깥의 절차나 프로그램. 모델 자체와 실행 조건을 구분할 때 쓰는 말이다.
+- [벤치마크·베이스라인]({{< relref "ai-glossary" >}}#benchmark): 벤치마크는 비교를 위한 시험이고, 베이스라인은 비교의 출발점이 되는 방법이다. 결과는 시험 조건과 함께 읽는다.
+- [검증·재현]({{< relref "ai-glossary" >}}#evaluation): 검증은 결과가 주장을 뒷받침하는지 확인하는 일이다. 재현은 설명된 방법을 다시 수행해 결과가 나오는지 확인하는 일이다.
+
+**이번 글의 목표:** 모델과 실행·채점 조건의 영향을 구분하기.
+
+**이 학습 경로의 앞 글:** [\[서베이\] Context Condensation 연구 동향 (2026) — 에이전트 컴팩션·RL 학습·안전성·표현 압축·이론]({{< relref "posts/context-condensation-survey-2026" >}}).
+
+검색으로 자료를 가져오는 흐름은 [RAG 전체 흐름]({{< relref "posts/rag-survey-2026" >}})에서 먼저 볼 수 있다.
+
+**본문에서 먼저 볼 순서:** **들어가며 — Harness가 뭐고 왜 문제인가?** → **Part F. 정정 사항 (배경 리서치 반영)** → **참고 문헌 (핵심)**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 도구 호출의 입력/출력, 실험 설계와 비교 조건, 검증과 재현의 구분.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Attention Is All You Need](https://arxiv.org/abs/1706.03762) | **개념 준비**: Attention·위치 정보·인코더/디코더 | 현재 토큰이 다른 위치의 정보를 읽는 구조 그림과 Attention 설명 |
+| 2. [Training language models to follow instructions with human feedback](https://arxiv.org/abs/2203.02155) · [블로그 해설]({{< relref "posts/reinforcement-learning-beginner-guide" >}}) | **개념 준비**: SFT·선호 데이터·보상 모델·RLHF | 지도 학습, 보상 학습, 정책 학습을 나눈 구성도 |
+| 3. [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629) | **개념 준비**: 생각·행동·관측의 반복 | 추론 문장, 도구 호출, 도구 결과의 순서 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘모델과 실행·채점 조건의 영향을 구분하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 들어가며 — Harness가 뭐고 왜 문제인가?
 
 **Harness** = LLM을 "돌리기 위한 감싸는 코드". 두 종류:
@@ -23,6 +69,8 @@ draft: false
 3. 실전 권고
 
 를 논문 근거로 정리한다.
+
+하네스는 입력을 만들고 모델을 호출하고 결과를 채점하는 바깥의 절차다. 모델 가중치가 같아도 이 절차가 달라지면 모델이 실제로 받은 문제와 점수 계산이 달라질 수 있다. 그래서 뒤의 사례는 입력 형식, 실행 환경, 채점 기준으로 나눠 읽으면 좋다. 어느 단계에서 차이가 생겼는지 알아야 모델 성능의 변화인지 평가 조건의 변화인지 구분할 수 있다.
 
 ---
 
@@ -786,7 +834,7 @@ draft: false
 
 ## Part F. 정정 사항 (배경 리서치 반영)
 
-리서치 검증 과정에서 발견한 필자 초안 오류:
+자료를 검증하는 과정에서 내 초안에도 오류가 발견됐다.
 
 | 항목 | 정정 |
 |------|------|
@@ -856,3 +904,16 @@ draft: false
 - [MMLU-Pro (arXiv:2406.01574)](https://arxiv.org/abs/2406.01574)
 - [GPQA (arXiv:2311.12022)](https://arxiv.org/abs/2311.12022)
 - [BFCL (Berkeley Function Calling Leaderboard)](https://gorilla.cs.berkeley.edu/leaderboard.html)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 모델과 실행·채점 조건의 영향을 구분하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[리뷰\] The Last AI Built by Humans — 재귀적 자기개선(RSI)의 자율성 5단계 로드맵]({{< relref "posts/recursive-self-improvement-survey" >}}) — 자동 수정과 실제 개선의 증거 구분하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

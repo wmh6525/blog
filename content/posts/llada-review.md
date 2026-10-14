@@ -9,6 +9,52 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [여러 빈칸을 복원하며 글 만들기]({{< relref "learn" >}}#diffusion) · 4/5
+
+빈칸이 있는 문장에서 빈칸의 앞뒤를 함께 보면 복원에 도움이 될 수 있다. LLaDA는 이런 마스크 예측을 언어 생성에 사용하는 모델이다. 학습할 때 무엇을 가리고, 생성할 때 어떤 순서로 풀어 가는지 구분해 읽자.
+
+**먼저 알아둘 말**
+
+- [확산·디노이징]({{< relref "ai-glossary" >}}#diffusion): 데이터를 훼손하는 과정과 그 훼손을 되돌리는 복원 과정을 다루는 생성 방식. 텍스트에서는 일부 위치를 가리는 방식도 사용한다.
+- [Attention]({{< relref "ai-glossary" >}}#attention): 현재 계산에 필요한 다른 위치의 정보를 가중치를 주어 섞는 장치. 가중치가 크다는 사실만으로 판단의 원인을 확정할 수는 없다.
+- [토큰·토크나이저]({{< relref "ai-glossary" >}}#token): 토큰은 모델이 처리하는 텍스트 조각이고, 토크나이저는 글을 그 조각으로 나누는 도구다. 토큰 하나가 단어 하나와 같지는 않다.
+
+**이번 글의 목표:** 양쪽 문맥을 보고 마스크를 채우는 과정 이해하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] MDLM 심화 — '마스킹 디퓨전 = 가중 MLM' 정리의 완전 유도와 학습/추론 해부]({{< relref "posts/mdlm-deep-review" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **2. 아키텍처 — LLaMA3와 무엇이 다른가** → **10. 한계** → **11. 핵심 요약**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 조건부 확률, 확률 분포, 가리는 과정과 복원 과정; 이론 유도에는 기댓값과 로그.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Attention Is All You Need](https://arxiv.org/abs/1706.03762) | **개념 준비**: Attention·위치 정보·인코더/디코더 | 현재 토큰이 다른 위치의 정보를 읽는 구조 그림과 Attention 설명 |
+| 2. [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805) | **개념 준비**: 양방향 문맥·마스크 예측·사전학습 | 입력 표현과 가려진 토큰을 예측하는 사전학습 목표 |
+| 3. [Simple and Effective Masked Diffusion Language Models](https://arxiv.org/abs/2406.07524) · [블로그 해설]({{< relref "posts/mdlm-deep-review" >}}) | **개념 준비**: 마스킹 손실·복원·출력 제약 | 가린 토큰에 집중하는 학습과 샘플링 규칙 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘양쪽 문맥을 보고 마스크를 채우는 과정 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: Large Language Diffusion Models
@@ -29,7 +75,7 @@ draft: false
 
 ## 2. 아키텍처 — LLaMA3와 무엇이 다른가
 
-LLaDA의 마스크 예측기는 **bidirectional Transformer 인코더** (causal mask 없음). 표준 decoder-only LLM에서 causal mask만 제거한 것.
+LLaDA의 마스크 예측기는 causal mask가 없는 **bidirectional Transformer 인코더**다. 표준 decoder-only LLM에서 causal mask를 제거한 구조로 볼 수 있다.
 
 | 항목 | LLaDA 8B | LLaMA3 8B |
 |------|---------|-----------|
@@ -50,6 +96,8 @@ LLaDA의 마스크 예측기는 **bidirectional Transformer 인코더** (causal 
 3. **FFN 차원 축소** (14336 → 12288) — MHA 추가 파라미터를 상쇄해 총 ~8B 유지
 
 마스크 토큰 ID = **126336**.
+
+causal mask를 제거하면 가려진 위치를 예측할 때 양쪽 문맥을 볼 수 있다. 생성 중에는 아직 정해지지 않은 위치가 마스크로 남고, 복원 과정에서 점차 채워진다. 아래 학습의 마스킹 비율과 추론의 샘플링 절차는 같은 모델을 서로 다른 조건에서 사용하는 방법이다. 마스크 예측기의 구조와 마스크를 풀어 가는 규칙을 나눠 읽으면 흐름이 명확해진다.
 
 ---
 
@@ -72,7 +120,7 @@ LLaDA의 마스크 예측기는 **bidirectional Transformer 인코더** (causal 
 
 ### 토크나이저
 
-자체 BPE 토크나이저 (어휘 126,464), 마스크 토큰 ID 126336.
+자체 BPE 토크나이저 (어휘 126,464)를 쓰며 마스크 토큰 ID는 126336이다.
 
 ---
 
@@ -325,3 +373,16 @@ temperature 0.0, 블록 크기 32, 신뢰도 임계값 0.95. LLaDA2.0-flash-CAP 
 - [LLaDA-V (arXiv:2505.16933)](https://arxiv.org/abs/2505.16933)
 - [LLaDA 2.0 (arXiv:2512.15745)](https://arxiv.org/abs/2512.15745)
 - [코드: github.com/ML-GSAI/LLaDA](https://github.com/ML-GSAI/LLaDA)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 양쪽 문맥을 보고 마스크를 채우는 과정 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[논문 리뷰\] Mercury 심화 — 최초의 상용 Diffusion LLM, 학습/추론과 벤치마크 완전 해부]({{< relref "posts/mercury-deep-review" >}}) — 병렬 생성의 속도를 조건과 반복 횟수로 해석하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

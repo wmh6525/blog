@@ -9,6 +9,50 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [좋은 답을 배우고 기존 능력 지키기]({{< relref "learn" >}}#learning) · 4/9
+
+모델에 새 일을 가르친 뒤 원래 잘하던 일이 어려워질 수 있다. 이 글은 새 능력을 배우면서 기존 능력을 지키려는 방법을 비교한다. 새 일을 거의 안 배워서 덜 잊은 경우도 있으므로 획득과 보존을 함께 봐야 한다.
+
+**먼저 알아둘 말**
+
+- [파국적 망각]({{< relref "ai-glossary" >}}#forgetting): 새 과제를 학습한 뒤 기존에 잘하던 과제의 성능이 떨어지는 현상. 덜 잊었는지 볼 때는 새 과제를 얼마나 배웠는지도 함께 본다.
+- [파인튜닝·SFT]({{< relref "ai-glossary" >}}#finetuning): 파인튜닝은 이미 학습한 모델을 추가 데이터로 더 학습시키는 일이다. SFT는 입력과 목표 답의 예시를 이용하는 지도 파인튜닝이다.
+- [검증·재현]({{< relref "ai-glossary" >}}#evaluation): 검증은 결과가 주장을 뒷받침하는지 확인하는 일이다. 재현은 설명된 방법을 다시 수행해 결과가 나오는지 확인하는 일이다.
+
+**이번 글의 목표:** 덜 배우는 것과 덜 잊는 것을 구분해 비교하기.
+
+**이 학습 경로의 앞 글:** [\[리뷰\] SDFT — 새로 배워도 잊지 않는 파인튜닝: Self-Distillation Enables Continual Learning]({{< relref "posts/sdft-self-distillation-review" >}}).
+
+**본문에서 먼저 볼 순서:** **1. 문제 재정의: 망각은 무엇으로 결정되는가** → **7. 열린 문제**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 확률과 로그, 손실 최소화, 학습률, 정책과 보상; KL을 쓰는 글은 비교 방향도 확인.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Training language models to follow instructions with human feedback](https://arxiv.org/abs/2203.02155) · [블로그 해설]({{< relref "posts/reinforcement-learning-beginner-guide" >}}) | **개념 준비**: SFT·선호 데이터·보상 모델·RLHF | 지도 학습, 보상 학습, 정책 학습을 나눈 구성도 |
+| 2. [Self-Distillation Enables Continual Learning](https://arxiv.org/abs/2601.19897) · [블로그 해설]({{< relref "posts/sdft-self-distillation-review" >}}) | **개념 준비**: 자기증류·학생 생성 답·기존 능력 보존 | 힌트를 본 교사와 학생의 문맥 차이, 새 과제와 기존 과제 평가 |
+| 3. [Continual Learning via Sparse Memory Finetuning](https://arxiv.org/abs/2510.15103) · [블로그 해설]({{< relref "posts/memory-layers-sparse-finetuning-review" >}}) | **개념 준비**: 갱신 슬롯 선택·획득과 망각의 비교 | 어느 저장 칸을 고치는지와 순차 학습의 평가 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘덜 배우는 것과 덜 잊는 것을 구분해 비교하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## Executive Summary
 
 파인튜닝은 새 능력을 얻는 대신 기존 능력을 잃는다. 이 **파국적 망각(catastrophic forgetting)**은 연속학습의 오래된 문제지만, LLM 시대에 들어 "리플레이·EWC를 붙이는" 처방 위주에서 **"왜, 어떤 조건에서 잊는가"를 정량화하고 학습 목적·갱신 구조 자체를 바꾸는** 연구로 이동했다. 2025년 하반기부터 "저망각 파인튜닝"이 독립 주제로 자리잡았고, 논문은 크게 네 갈래로 나뉜다.
@@ -24,7 +68,7 @@ draft: false
 
 > **"온폴리시가 덜 잊는다"**는 가장 강한 합의이고, **"희소·모듈형 갱신으로 격리한다"**가 구조적으로 가장 깨끗하다. 단, 2026년 여름 **"RL도 결국 잊는다"**는 반론이 나와 원인(KL 페널티 vs 온폴리시 데이터)과 한계가 논쟁 중이다.
 
-세 레버(온폴리시 목적 · 갱신 격리 · 손실 적응 학습률)는 서로 직교하므로 결합 가능하다.
+세 수단(온폴리시 목적 · 갱신 격리 · 손실 적응 학습률)은 서로 직교하므로 함께 쓸 수 있다.
 
 ---
 
@@ -38,6 +82,8 @@ draft: false
 - **망각은 비가역적인가?** → 상당 부분은 회복 가능한 "드리프트" 또는 "과제 정렬 손실" (ES+AWD, Spurious Forgetting)
 
 이 재정의가 아래 네 계열의 공통 배경이다.
+
+새 과제 점수만 보면 덜 배우는 방법도 덜 잊는 것처럼 보일 수 있다. 저망각 주장을 비교하려면 새 능력의 획득량과 기존 능력의 보존량을 함께 봐야 한다. 아래 네 계열은 학습 목적, 갱신 위치, 최적화 조건, 측정 방식을 각각 바꾼다. 실험에서 무엇을 고정하고 무엇을 바꿨는지를 따라가면 서로 다른 저망각 결과를 해석하기 쉬워진다.
 
 ---
 
@@ -56,7 +102,7 @@ LLM 실험과 통제된 toy 실험, 그리고 온폴리시 갱신이 작은 KL �
 
 같은 그룹(Shenfeld·Damani·Hübotter·Agrawal)의 확장. "RL이 덜 잊는 건 온폴리시 덕분인데, 보상 없이 **데모 데이터만 있어도** 온폴리시로 학습할 수 있는가?"에 대한 답이다. (arXiv 프리프린트. ICML 2026으로 소개되곤 하지만 arXiv·PDF·프로젝트 페이지 어디에서도 게재 표기를 확인할 수 없다.)
 
-- 데모를 in-context로 조건화한 모델을 **교사**(학생의 EMA 가중치)로 삼고, 학생(같은 모델, 조건 없음)의 온폴리시 샘플 위에서 토큰별로 교사 분포에 맞춘다.
+- 데모를 in-context로 조건화한 모델을 **교사**(학생의 EMA 가중치)로 삼고 학생(같은 모델, 조건 없음)의 온폴리시 샘플 위에서 토큰별로 교사 분포에 맞춘다.
 - **손실 방향 주의**: 논문의 이론(신뢰 영역 RL 역산 → 암묵적 보상)은 **reverse-KL** 기준이지만, 저자들은 v2 본문과 저장소 README(2026-04-07)에서 **보고된 결과는 모두 토큰별 forward-KL**(GKD와 유사)로 학습했다고 정정했다. "온폴리시 샘플링"은 맞지만 "reverse-KL로 맞춘다"는 실제 구현과 다르다.
 - SFT보다 새 과제 정확도가 높고 망각은 크게 줄어, 순차 학습에서 단일 모델이 여러 스킬을 누적한다(Qwen2.5-7B 기준 기존 능력 평균 base 65.5 → SDFT 64.5~65.4, SFT 53.4~60.2). 망각이 0은 아니다.
 - 비용: SFT 대비 FLOPs 약 2.5배, wall-clock 약 4배. ICL이 약한 3B에서는 SFT보다 나쁘다.
@@ -66,7 +112,7 @@ LLM 실험과 통제된 toy 실험, 그리고 온폴리시 갱신이 작은 KL �
 
 ### 2.3 Reinforcement Fine-Tuning Naturally Mitigates Forgetting (2025.07, 2026.06 개정)
 
-Qwen2.5-VL-7B-Instruct 멀티모달 연속 후학습에서 RFT가 **멀티태스크 학습에 준하는 성능**을 유지하는 반면 SFT는 일반 능력을 심하게 망각. 원인을 KL 페널티가 아닌 **선택적 갱신 메커니즘**(보상 신호가 있는 샘플만 갱신)으로 돌리며, 학습 가능한 샘플을 우선하는 RIF-RFT 필터링을 제안한다.
+Qwen2.5-VL-7B-Instruct 멀티모달 연속 후학습에서 RFT가 **멀티태스크 학습에 준하는 성능**을 유지하는 반면 SFT는 일반 능력을 심하게 망각. 원인을 KL 페널티가 아닌 **선택적 갱신 메커니즘**(보상 신호가 있는 샘플만 갱신)으로 돌리며 학습 가능한 샘플을 우선하는 RIF-RFT 필터링을 제안한다.
 
 ### 2.4 기계론적·이론적 뒷받침
 
@@ -88,7 +134,7 @@ Qwen2.5-VL-7B-Instruct 멀티모달 연속 후학습에서 RFT가 **멀티태스
 
 **Overcoming Catastrophic Forgetting in Visual Continual Learning with RFT (2026.05)**
 - RFT가 SFT보다 낫지만 망각은 무시할 수 없는 수준으로 남는다.
-- 병목은 **궤적 수준 드리프트 무지(Trajectory-level Drift Agnosticism)**: 같은 보상을 받는 롤아웃들 사이에서 이전 과제 정책과의 KL이 크게 다르고, 이 편차가 순차 과제 망각과 강하게 상관한다.
+- 병목은 **궤적 수준 드리프트 무지(Trajectory-level Drift Agnosticism)**: 같은 보상을 받는 롤아웃들 사이에서 이전 과제 정책과의 KL이 크게 다르고 이 편차가 순차 과제 망각과 강하게 상관한다.
 
 **논쟁의 현재 상태.** RL의 저망각 원인을 (a) KL 페널티(Shenfeld et al.), (b) 온폴리시 데이터 생성 자체(Zhang et al., Chen et al.)로 보는 두 입장이 공존하며, Chen·Lai 등의 경험적 평가는 KL 정규화의 역할이 미미하다고 보고한다. "RL이 **덜** 잊는다"는 재현되지만 "**안** 잊는다"는 아니다.
 
@@ -139,7 +185,7 @@ Qwen2.5-VL-7B-Instruct 멀티모달 연속 후학습에서 RFT가 **멀티태스
 
 ### 4.1 LoRA 논쟁
 
-- **LoRA Learns Less and Forgets Less** (TMLR 2024): 표준 저랭크에서 LoRA는 Full FT보다 덜 배우지만, 타깃 도메인 밖 성능을 더 잘 유지하고 weight decay·dropout보다 망각을 잘 억제.
+- **LoRA Learns Less and Forgets Less** (TMLR 2024): 표준 저랭크에서 LoRA는 Full FT보다 덜 배우지만 타깃 도메인 밖 성능을 더 잘 유지하고 weight decay·dropout보다 망각을 잘 억제.
 - **LoRA vs Full FT: An Illusion of Equivalence** (2025): **동일 적합도**에서도 LoRA가 덜 잊는다 → 단순 과소적합 효과가 아님. 단, LoRA는 사전학습 가중치에 없는 "침입 차원(intruder dimensions)"을 만든다.
 - **Mitigating Forgetting in LoRA / LaLoRA** (2025.12): LoRA가 덜 잊는 것은 **보편적이지 않다**. 하이퍼파라미터에 따라 사전학습 가중치와 어긋난 고특이값 방향이 생겨 망각이 커진다. LoRA 가중치에만 Laplace 근사를 적용해 고곡률 방향 갱신을 제한(LaLoRA).
 - **Optimizer-Model Consistency** (2026.05): **사전학습과 같은 옵티마이저**로 Full FT하면 LoRA보다 나은 학습·망각 트레이드오프. 옵티마이저는 암묵적 정규화자이며(Muon vs AdamW 비교, Muon은 소량 데이터에서 과도한 암기 경향), 기존 LoRA 논문들의 결론 차이는 **학습률 선택 차이**로 설명된다.
@@ -263,3 +309,16 @@ Qwen2.5-VL-7B-Instruct 멀티모달 연속 후학습에서 RFT가 **멀티태스
 - [Revisiting Replay and Gradient Alignment for Continual Pre-Training (arXiv:2508.01908)](https://arxiv.org/abs/2508.01908)
 - [The Finetuner's Fallacy: When to Pretrain with Your Finetuning Data (arXiv:2603.16177)](https://arxiv.org/abs/2603.16177)
 - [Bring Your Own Knowledge: A Survey of LLM Knowledge Expansion (arXiv:2502.12598)](https://arxiv.org/abs/2502.12598)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 덜 배우는 것과 덜 잊는 것을 구분해 비교하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[리뷰\] 메모리 레이어로 잊지 않고 배우기 — Memory Layers at Scale부터 Sparse Memory Finetuning, Fast-weight PKM까지]({{< relref "posts/memory-layers-sparse-finetuning-review" >}}) — 일부 저장 칸을 읽고 고치는 방식 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

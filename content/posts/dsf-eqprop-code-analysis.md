@@ -9,6 +9,49 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [역전파를 바꾸면 무엇이 달라질까?]({{< relref "learn" >}}#no-bp) · 7/7
+
+오차를 전달할 행렬을 고정해 쓰는 방법과, 모델이 안정된 상태에 도달한 뒤 상태 차이로 학습하는 방법을 비교한다. 목적은 비슷해도 계산 절차가 다르다. 코드를 보기 전에 두 방법의 반복 순서와 저장할 값을 나눠 적어 보자.
+
+**먼저 알아둘 말**
+
+- [그래디언트·역전파]({{< relref "ai-glossary" >}}#gradient): 그래디언트는 숫자를 어느 방향으로 바꾸면 손실이 달라지는지 나타낸다. 역전파는 연결된 계산을 거슬러 그 값을 구하는 방법이다.
+- [Predictive Coding·예측 오차]({{< relref "ai-glossary" >}}#pc): 각 층의 예측과 현재 상태의 차이를 이용해 상태와 가중치를 조정하는 계산 방식. 상태 조정과 가중치 학습의 순서를 구분해 본다.
+- [파라미터·가중치]({{< relref "ai-glossary" >}}#parameter): 모델 안에서 학습으로 조정하는 숫자. 모든 내부 숫자가 항상 학습 대상인 것은 아니다.
+
+**이번 글의 목표:** 고정 피드백과 평형 상태 비교의 구현 차이 이해하기.
+
+**이 학습 경로의 앞 글:** [\[코드 분석\] Prospective Configuration — PCLayer와 PCTrainer로 구현하는 비역전파 학습]({{< relref "posts/prospective-config-code-analysis" >}}).
+
+**본문에서 먼저 볼 순서:** **Part 1: DSF — 대각 고정 피드백으로 BPTT 대체** → **Part 2: EqProp-SeqLearning — 평형전파로 NLP 분류** → **DSF vs EqProp 비교**.
+
+이 글은 구현을 다루는 심화 글이다. 첫 독서에서는 설명과 함수의 역할을 보고, Python과 해당 라이브러리를 익힌 뒤 코드와 수식을 다시 따라가자.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 손실 함수, 미분·연쇄법칙, 가중치와 활성값의 구분; 에너지 기반 방법은 최적화와 수렴.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Equilibrium Propagation: Bridging the Gap Between Energy-Based Models and Backpropagation](https://arxiv.org/abs/1602.05179) | **구현 대상 이론**: 에너지·평형 상태·두 단계 학습 | 자유 상태와 목표로 살짝 유도한 상태의 비교 |
+| 2. [Inferring neural activity before plasticity as a foundation for learning beyond backpropagation](https://doi.org/10.1038/s41593-023-01514-1) · [블로그 해설]({{< relref "posts/prospective-configuration-review" >}}) | **개념 준비**: 상태 최적화·가중치 학습·예측 오차 | 활성 상태를 먼저 조정하고 가중치를 나중에 바꾸는 순서 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘고정 피드백과 평형 상태 비교의 구현 차이 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## Part 1: DSF — 대각 고정 피드백으로 BPTT 대체
 
 ### 레포 정보
@@ -39,7 +82,7 @@ tasks/
 
 **파일**: `dsf/dsf.py`
 
-논문의 핵심 아이디어: BPTT의 시간 방향 그래디언트 전파를 **고정된 대각 행렬**로 대체한다.
+이 논문은 BPTT의 시간 방향 그래디언트 전파를 **고정된 대각 행렬**로 대체한다.
 
 ```python
 # dsf.py, DfaRnn.initialize_feedback_matrix, line 155-173
@@ -207,3 +250,18 @@ neurons[idx] = attention_output
 | **데이터셋** | Wikitext-103, PTB (언어 모델링) | IMDB, SNLI (분류) |
 | **손실** | CrossEntropy | MSE |
 | **코드 스타일** | YAML 설정 기반 | Argparse CLI |
+
+두 구현을 비교할 때는 오차를 어디서 얻고, 어느 값으로 가중치를 갱신하는지부터 따라가면 된다. DSF에서는 시간 방향의 피드백 행렬을, EqProp에서는 상태가 수렴하는 과정과 두 상태의 차이를 살펴본다. ‘BPTT를 대체한다’는 목적은 같아도 학습 신호를 만드는 절차가 다르므로, 반복 계산과 저장해야 할 상태도 각각 확인해야 한다.
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 고정 피드백과 평형 상태 비교의 구현 차이 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+이 경로의 마지막 글이다. [학습 순서]({{< relref "learn" >}})로 돌아가 다른 경로를 고르거나, 어려웠던 수식·코드 부분을 다시 읽어 보자.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

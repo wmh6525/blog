@@ -9,6 +9,51 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [문장을 읽으며 기억하는 모델]({{< relref "learn" >}}#memory) · 8/13
+
+논문의 상태 갱신 식이 실제 프로그램에서 어느 함수로 계산되는지 따라가는 글이다. 입력에서 계산용 값을 만드는 부분과 GPU에서 계산을 실행하는 부분을 나눠 본다. 코드 경험이 없다면 구조도와 설명만 먼저 읽고 구현은 나중에 돌아오자.
+
+**먼저 알아둘 말**
+
+- [상태·SSM]({{< relref "ai-glossary" >}}#state): 상태는 이전까지 읽은 정보를 다음 단계에 전달하는 내부 값이다. SSM은 이 상태가 입력에 따라 바뀌고 출력을 만드는 관계를 모델링한다.
+- [GPU·병렬 처리]({{< relref "ai-glossary" >}}#gpu): GPU는 많은 계산을 함께 처리하는 데 쓰는 장치다. 병렬 처리는 작업을 나눠 동시에 수행하는 방식이다.
+- [파라미터·가중치]({{< relref "ai-glossary" >}}#parameter): 모델 안에서 학습으로 조정하는 숫자. 모든 내부 숫자가 항상 학습 대상인 것은 아니다.
+
+**이번 글의 목표:** 수식의 상태 갱신과 구현의 함수 호출 대응시키기.
+
+**이 학습 경로의 앞 글:** [\[서베이\] Mamba/SSM 계열 모델 완전 정리 — HiPPO에서 Nemotron-H까지]({{< relref "posts/mamba-family-complete-survey" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **1. 디렉토리 구조** → **5. 모델 전체 구조**.
+
+이 글은 구현을 다루는 심화 글이다. 첫 독서에서는 설명과 함수의 역할을 보고, Python과 해당 라이브러리를 익힌 뒤 코드와 수식을 다시 따라가자.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터·행렬, 상태의 재귀 갱신, 연속과 이산 시간; 수식 독서에는 미분과 선형대수.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Mamba: Linear-Time Sequence Modeling with Selective State Spaces](https://arxiv.org/abs/2312.00752) · [블로그 해설]({{< relref "posts/mamba-ssm-review" >}}) | **개념 준비**: 입력 의존 상태 갱신·선택 메커니즘 | 입력에 따라 바뀌는 값과 selective scan의 역할 |
+| 2. [Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality](https://arxiv.org/abs/2405.21060) · [블로그 해설]({{< relref "posts/mamba2-review" >}}) | **개념 준비**: 구조화된 Attention·상태 공간 이중성·청크 계산 | 재귀와 행렬 표현의 대응, 청크 안과 청크 사이 계산 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘수식의 상태 갱신과 구현의 함수 호출 대응시키기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 레포 정보
 
 - **GitHub**: [state-spaces/mamba](https://github.com/state-spaces/mamba)
@@ -55,6 +100,8 @@ mamba_ssm/
 - Mamba-2: **Triton** (chunk-wise SSD)
 - Mamba-3: **Triton** (SISO) + **TileLang** (MIMO) + **CuTE DSL** (H100 step)
 
+코드를 따라갈 때는 모델 블록, 상태 갱신 연산, GPU 커널의 세 층을 나눠 보면 좋다. 모델 블록이 입력에서 파라미터를 만들고, 상태 갱신 연산이 수식을 계산하며, 커널이 그 계산을 하드웨어에 맞춰 실행한다. 아래 함수 호출을 이 층들에 대응시키면 논문의 같은 연산이 왜 여러 파일과 구현 경로에 나뉘어 있는지 이해할 수 있다.
+
 ---
 
 ## 2. Mamba-1: Selective SSM 구현
@@ -63,7 +110,7 @@ mamba_ssm/
 
 **파일**: `modules/mamba_simple.py`
 
-논문의 $A$ 행렬은 S4D 초기화를 사용한다. 코드에서는 **log-space**로 저장하여 항상 음수를 보장:
+논문의 $A$ 행렬은 S4D 초기화를 사용한다. 코드에서는 **log-space**로 저장해 항상 음수가 되도록 한다.
 
 ```python
 # mamba_simple.py, line 103-111
@@ -382,3 +429,16 @@ Mamba 코드베이스는 **논문과 코드의 대응이 매우 명확**하다. 
 - 실제 성능을 위한 최적화(`exp2f` 사용, CUB parallel scan, Triton chunk-wise 계산)가 별도 커널 파일에 깔끔하게 분리
 - Mamba-3의 세 가지 혁신(Exp-Trapezoidal, 복소수 SSM, MIMO)이 각각 독립적인 코드 경로를 가지면서도 하나의 모듈(`mamba3.py`)에서 통합
 - 세대별로 커널 기술이 CUDA C++ → Triton → TileLang/CuTE로 진화한 것이 GPU 프로그래밍 생태계의 발전을 반영
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 수식의 상태 갱신과 구현의 함수 호출 대응시키기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[연구 분석\] Selective SSM만으로는 왜 거대 언어모델이 될 수 없는가?]({{< relref "posts/why-pure-ssm-cannot-be-llm" >}}) — 요약 기억과 정확한 과거 조회가 다른 요구임을 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

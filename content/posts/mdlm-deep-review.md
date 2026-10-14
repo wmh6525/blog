@@ -9,6 +9,52 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [여러 빈칸을 복원하며 글 만들기]({{< relref "learn" >}}#diffusion) · 3/5
+
+문장을 조금 가리거나 많이 가린 뒤 원래 토큰을 맞히게 하면 다양한 복원 상황을 학습할 수 있다. 이 모델은 가린 위치와 이미 보이는 위치를 다르게 취급한다. 모델이 실제로 맞혀야 할 부분이 어디인지부터 표시해 보자.
+
+**먼저 알아둘 말**
+
+- [확산·디노이징]({{< relref "ai-glossary" >}}#diffusion): 데이터를 훼손하는 과정과 그 훼손을 되돌리는 복원 과정을 다루는 생성 방식. 텍스트에서는 일부 위치를 가리는 방식도 사용한다.
+- [손실 함수]({{< relref "ai-glossary" >}}#loss): 예측이 목표에서 얼마나 벗어났는지 계산하는 기준. 학습에서는 보통 이 값을 줄이려 한다.
+- [토큰·토크나이저]({{< relref "ai-glossary" >}}#token): 토큰은 모델이 처리하는 텍스트 조각이고, 토크나이저는 글을 그 조각으로 나누는 도구다. 토큰 하나가 단어 하나와 같지는 않다.
+
+**이번 글의 목표:** 가린 정도가 다른 문장을 복원하며 학습하는 흐름 이해하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] SEDD 심화 — Score Entropy 손실의 수식 유도와 학습/추론 완전 해부]({{< relref "posts/sedd-deep-review" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **2. 핵심 이론 (논문의 중심 기여)** → **3. 아키텍처** → **9. 한계**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 조건부 확률, 확률 분포, 가리는 과정과 복원 과정; 이론 유도에는 기댓값과 로그.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805) | **개념 준비**: 양방향 문맥·마스크 예측·사전학습 | 입력 표현과 가려진 토큰을 예측하는 사전학습 목표 |
+| 2. [Structured Denoising Diffusion Models in Discrete State-Spaces](https://arxiv.org/abs/2107.03006) · [블로그 해설]({{< relref "posts/diffusion-language-models-survey" >}}) | **개념 준비**: 이산 상태 전이·마스킹·역확산 | 연속 노이즈 대신 토큰 상태를 바꾸는 과정 |
+| 3. [Discrete Diffusion Modeling by Estimating the Ratios of the Data Distribution](https://arxiv.org/abs/2310.16834) · [블로그 해설]({{< relref "posts/sedd-deep-review" >}}) | **개념 준비**: concrete score·확률 비율·score entropy | 비교하는 상태와 학습하는 비율의 정의 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘가린 정도가 다른 문장을 복원하며 학습하는 흐름 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: Simple and Effective Masked Diffusion Language Models
@@ -46,7 +92,7 @@ $$q(z_s | z_t, x) = \begin{cases} \text{Cat}(z_s; z_t) & z_t \neq m \\ \text{Cat
 
 ### 2.3 SUBS 파라미터화 (기여 1)
 
-디노이징 네트워크 $x_\theta(z_t, t)$가 $x$를 근사. SUBS는 두 가지 구조적 성질을 **출력 치환으로** 강제 (아키텍처 변경 없음):
+디노이징 네트워크 $x_\theta(z_t, t)$는 $x$를 근사한다. SUBS는 아키텍처를 바꾸지 않고 **출력 치환으로** 두 가지 구조적 성질을 강제한다.
 
 1. **Zero Masking Probabilities**: $\langle x, m \rangle = 0$이므로 **MASK 로짓을 $-\infty$로 치환** → 모델이 마스크 토큰을 절대 예측 안 함
 2. **Carry-Over Unmasking**: $z_t$가 이미 비마스킹이면 $x_\theta(z_t, t) = z_t$ → 비마스킹 입력을 출력으로 직접 복사. 드러난 토큰은 이후 동결
@@ -75,6 +121,8 @@ $$\mathcal{L}_{\text{NELBO}}^\infty = \mathbb{E}_q \int_{t=0}^{1} \frac{\alpha_t
 ### 2.5 노이즈 스케줄 불변성
 
 변수 치환 $\gamma \equiv \log(1-\alpha_t)$를 하면 손실이 **$\alpha_t$의 함수 형태와 무관**해진다. 경험적 검증: log-linear, cosine, linear 모두 같은 likelihood (3.30 BPD)지만 **log-linear가 가장 낮은 분산** (1.81 vs cosine 3.30 vs linear 7.57).
+
+마스킹 확산의 학습에서는 서로 다른 정도로 가린 문장을 복원한다. 가중 MLM으로 손실을 쓰면 각 마스킹 수준의 복원 오차가 어떤 비중으로 들어가는지 드러난다. SUBS 파라미터화는 이미 관찰된 토큰과 가려진 토큰을 모델 출력에서 어떻게 취급할지 정한다. 아래 유도는 이 제약 덕분에 남는 학습 항을 확인하는 과정이다.
 
 ---
 
@@ -271,3 +319,16 @@ MDLM이 SEDD를 전 데이터셋에서 능가. **Lambada, Pubmed, Arxiv에서는
 - [MDLM (arXiv:2406.07524)](https://arxiv.org/abs/2406.07524)
 - [프로젝트 페이지: s-sahoo.com/mdlm](https://s-sahoo.com/mdlm/)
 - [코드: github.com/kuleshov-group/mdlm](https://github.com/kuleshov-group/mdlm)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 가린 정도가 다른 문장을 복원하며 학습하는 흐름 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[논문 리뷰\] LLaDA — 8B 마스킹 디퓨전 LLM, 데이터·하이퍼파라미터·학습/추론 완전 해부]({{< relref "posts/llada-review" >}}) — 양쪽 문맥을 보고 마스크를 채우는 과정 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

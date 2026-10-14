@@ -9,6 +9,50 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [자료를 찾아 답하는 AI]({{< relref "learn" >}}#rag) · 3/17
+
+검색기는 질문과 관련된 문서를 골라야 한다. 이를 배우려면 정답 문서뿐 아니라 비슷해 보이지만 답이 아닌 문서도 비교해야 한다. 어떤 예시를 함께 보여 주고, 잘못 고른 문서를 어떻게 걸러내는지 따라가면 학습 방법을 이해할 수 있다.
+
+**먼저 알아둘 말**
+
+- [검색기·리랭킹]({{< relref "ai-glossary" >}}#retriever): 검색기는 후보 문서를 찾는다. 리랭킹은 그 후보를 다시 평가해 질문에 더 관련 있는 순서로 정렬한다.
+- [임베딩·벡터]({{< relref "ai-glossary" >}}#embedding): 벡터는 여러 숫자의 묶음이고, 임베딩은 글이나 다른 정보를 그 묶음으로 표현하는 방식이다.
+- [학습과 추론]({{< relref "ai-glossary" >}}#training): 학습은 데이터로 모델 안의 숫자를 바꾸는 일이고, 추론은 모델에 입력을 넣어 결과를 얻는 일이다.
+
+**이번 글의 목표:** 관련 문서와 비슷하지만 틀린 문서를 구분하는 학습 이해하기.
+
+**이 학습 경로의 앞 글:** [\[서베이\] RAG의 쿼리 성능을 높이는 모든 방법 — Rewriting, Expansion, Decomposition, Routing부터 RL까지]({{< relref "posts/rag-query-optimization-survey" >}}).
+
+**본문에서 먼저 볼 순서:** **왜 검색기 학습인가?** → **1. 기반 논문: Dense Retrieval의 탄생 (2019-2020)** → **2. Hard Negative Mining의 혁명 (2020-2021)**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터의 유사도, 관련/무관 예시의 비교, 검색과 생성의 구분.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805) | **개념 준비**: 양방향 문맥·마스크 예측·사전학습 | 입력 표현과 가려진 토큰을 예측하는 사전학습 목표 |
+| 2. [Dense Passage Retrieval for Open-Domain Question Answering](https://arxiv.org/abs/2004.04906) | **개념 준비**: 질문/문서 인코더·대조 학습·negative | 관련 문서와 오답 문서를 비교하는 학습 데이터 구성 |
+| 3. [ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT](https://arxiv.org/abs/2004.12832) | **개념 준비**: 토큰별 표현·late interaction | 전체 문장 벡터 하나 대신 토큰 표현들을 비교하는 구조 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘관련 문서와 비슷하지만 틀린 문서를 구분하는 학습 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 왜 검색기 학습인가?
 
 RAG 정확도의 **절반 이상**은 검색기가 결정한다:
@@ -84,7 +128,7 @@ $$\mathcal{L} = -\log \frac{\exp(\text{sim}(q, p^+))}{\exp(\text{sim}(q, p^+)) +
 **2. Denoised Hard Negatives** (**가장 중요**):
 > Hard negative 중에는 **라벨이 없는 진짜 positive**가 섞여 있다 (False negative 문제).
 
-해결: **Cross-encoder**가 hard negative를 재평가하여 "진짜 상관없는 것"만 선별.
+**Cross-encoder**로 hard negative를 다시 평가해, 실제로 관련 없는 문서만 선별한다.
 
 ```
 BM25/ANN top-K → hard neg 후보
@@ -107,6 +151,8 @@ Cross-encoder 점수화
 - **Dynamic Listwise Distillation**: Retriever의 top-k를 Reranker가 실시간 평가 → KL divergence로 retriever 업데이트. Reranker는 retriever의 새 후보로 계속 재학습.
 
 **의의**: 정적 hard negative list가 아닌 **동적** 샘플링. ColBERTv2, SPLADE v3가 계승.
+
+Negative는 질문의 정답 근거가 아닌 문서이고, hard negative는 그중 모델이 관련 있다고 착각하기 쉬운 문서다. 쉬운 오답만 보여주면 구분을 배우기 쉽지만 실제 검색에서 만나는 애매한 문서에 대한 연습은 부족할 수 있다. 반대로 정답 문서를 오답으로 넣으면 잘못된 신호를 준다. 아래 mining과 재평가 방법은 난도를 높이면서 이 오류를 줄이려는 절차다.
 
 ---
 
@@ -236,7 +282,7 @@ $$\mathcal{L} = \text{MSE}\left(M_s(q, p^+) - M_s(q, p^-),\ M_t(q, p^+) - M_t(q,
 **왜 margin인가?**
 - Cross-encoder 점수 범위: 예를 들어 [-5, 10]
 - Dual-encoder (cosine) 점수 범위: [-1, 1]
-- **절대값은 맞출 수 없지만, 상대적 차이는 맞출 수 있다**
+- **절대값은 맞출 수 없지만 상대적 차이는 맞출 수 있다**
 
 **의의**: 이후 모든 teacher-student distillation의 표준 손실. E5, TAS-B, SPLADE v2, Contriever-supervised가 모두 사용.
 
@@ -402,3 +448,16 @@ $$\mathcal{L} = \sum_{m \in \lbrace 8, 16, 32, 64, \ldots, 2048 \rbrace} \mathca
 - [RAG 학습용 합성 데이터 서베이](rag-synthetic-data-survey.md)
 - [도메인 최적화 LLM for RAG](domain-optimized-llm-for-rag.md)
 - [RAG 검색 속도 최적화](rag-latency-optimization.md) — Seismic, CAGRA
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 관련 문서와 비슷하지만 틀린 문서를 구분하는 학습 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[서베이\] RAG 학습용 합성 데이터 생성 논문 총정리 — E5-Mistral, Self-Instruct, InPars, Promptagator, Gecko, GPL, RAFT]({{< relref "posts/rag-synthetic-data-survey" >}}) — 문서에서 학습용 질문과 답을 만드는 과정 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

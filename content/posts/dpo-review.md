@@ -9,6 +9,49 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [좋은 답을 배우고 기존 능력 지키기]({{< relref "learn" >}}#learning) · 2/9
+
+같은 질문에 대한 두 답 중 사람이 어느 쪽을 더 선호하는지 알려 준다고 하자. 이 비교로 모델이 선호되는 답을 더 자주 만들도록 조정하는 방법이다. 처음에는 답변 쌍을 어떻게 쓰는지 이해하고, 수식 유도는 나중에 따라가자.
+
+**먼저 알아둘 말**
+
+- [선호 학습]({{< relref "ai-glossary" >}}#preference): 같은 요청의 여러 답 중 어떤 답을 더 선호하는지 비교한 데이터로 모델을 조정하는 학습이다.
+- [정책·롤아웃]({{< relref "ai-glossary" >}}#policy): 정책은 주어진 상황에서 행동을 선택하는 방식이다. 롤아웃은 그 정책으로 행동하고 결과를 받은 과정을 기록한 것이다.
+- [KL divergence]({{< relref "ai-glossary" >}}#kl): 두 확률 분포의 차이를 측정하는 양. 비교 방향을 바꾸면 값과 학습 효과도 달라질 수 있다.
+
+**이번 글의 목표:** 두 답의 선호 비교로 모델을 조정하는 원리 이해하기.
+
+**이 학습 경로의 앞 글:** [\[입문\] 강화학습 완전 정복 — 게임 배우는 아이부터 PPO·DPO까지 그림으로 이해하기]({{< relref "posts/reinforcement-learning-beginner-guide" >}}).
+
+**본문에서 먼저 볼 순서:** **1. 문제: RLHF는 왜 복잡하고 불안정한가?** → **2. 핵심 통찰: "당신의 LM은 이미 보상모델이다"** → **6. 실험 결과**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 확률과 로그, 손실 최소화, 학습률, 정책과 보상; KL을 쓰는 글은 비교 방향도 확인.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347) · [블로그 해설]({{< relref "posts/reinforcement-learning-beginner-guide" >}}) | **개념 준비**: 정책·보상·정책 갱신 | 행동의 확률을 갱신하는 목적과 큰 변경을 제한하는 장치 |
+| 2. [Training language models to follow instructions with human feedback](https://arxiv.org/abs/2203.02155) · [블로그 해설]({{< relref "posts/reinforcement-learning-beginner-guide" >}}) | **개념 준비**: SFT·선호 데이터·보상 모델·RLHF | 지도 학습, 보상 학습, 정책 학습을 나눈 구성도 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘두 답의 선호 비교로 모델을 조정하는 원리 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: Direct Preference Optimization: Your Language Model is Secretly a Reward Model
@@ -54,6 +97,8 @@ draft: false
 
 정책 자체가 **암묵적 보상 모델**(implicit reward model) 역할을 하므로, 별도 보상 모델이 필요 없다.
 
+선호 데이터에는 같은 질문에 대한 선택된 답과 선택되지 않은 답이 들어간다. DPO는 이 쌍을 이용해 정책의 상대적인 확률을 조정한다. 수식에서 참조 정책이 함께 나오는 것은 기존 정책과 얼마나 달라지는지를 학습에 반영하기 위해서다. 아래 유도는 보상 최대화 문제를 이 답변 쌍의 확률 비교로 어떻게 옮기는지 따라가는 과정이다.
+
 ---
 
 ## 3. 수학적 유도 (상세)
@@ -67,7 +112,7 @@ $$\max_{\pi_\theta} \mathbb{E}_{x \sim \mathcal{D}, y \sim \pi_\theta} [r_\phi(x
 
 ### 3.2 닫힌 형태 최적 정책
 
-KL divergence를 풀어 쓰고 정리하면:
+KL divergence를 풀어 쓰면 다음 식으로 정리된다.
 
 $$\pi^*(y|x) = \frac{1}{Z(x)} \pi_{\text{ref}}(y|x) \exp\left(\frac{1}{\beta} r(x, y)\right)$$
 
@@ -396,3 +441,16 @@ chosen/rejected 모두 **동시에 감소**하는 패턴 발견 — 비선호 �
 - [KTO (arXiv:2402.01306)](https://arxiv.org/abs/2402.01306)
 - [SimPO (NeurIPS 2024)](https://github.com/princeton-nlp/SimPO)
 - [Tülu 3 (arXiv:2411.15124)](https://arxiv.org/abs/2411.15124)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 두 답의 선호 비교로 모델을 조정하는 원리 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[리뷰\] SDFT — 새로 배워도 잊지 않는 파인튜닝: Self-Distillation Enables Continual Learning]({{< relref "posts/sdft-self-distillation-review" >}}) — 예시를 본 모델이 보지 않은 모델을 가르치는 과정 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

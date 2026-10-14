@@ -9,6 +9,52 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [문장을 읽으며 기억하는 모델]({{< relref "learn" >}}#memory) · 10/13
+
+과거를 요약한 상태를 쓰는 방법과 필요한 위치를 다시 참고하는 방법을 함께 사용할 수 있다. Hymba는 두 계산 경로를 같은 블록 안에서 결합한다. 두 경로가 무엇을 맡고 어디서 결과가 합쳐지는지 표시하며 읽어 보자.
+
+**먼저 알아둘 말**
+
+- [상태·SSM]({{< relref "ai-glossary" >}}#state): 상태는 이전까지 읽은 정보를 다음 단계에 전달하는 내부 값이다. SSM은 이 상태가 입력에 따라 바뀌고 출력을 만드는 관계를 모델링한다.
+- [Attention]({{< relref "ai-glossary" >}}#attention): 현재 계산에 필요한 다른 위치의 정보를 가중치를 주어 섞는 장치. 가중치가 크다는 사실만으로 판단의 원인을 확정할 수는 없다.
+- [메모리·키·값]({{< relref "ai-glossary" >}}#memory): 메모리는 정보를 저장하고 다시 읽는 구조다. 키는 항목을 찾는 단서, 값은 그 항목에서 꺼내는 내용으로 생각하면 된다.
+
+**이번 글의 목표:** 요약 기억과 Attention을 함께 쓰는 구조 이해하기.
+
+**이 학습 경로의 앞 글:** [\[연구 분석\] Selective SSM만으로는 왜 거대 언어모델이 될 수 없는가?]({{< relref "posts/why-pure-ssm-cannot-be-llm" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **1. 동기: SSM과 Attention, 각자의 한계** → **2. Hymba의 핵심: 헤드 내 융합** → **4. 아키텍처 세부 사항**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터·행렬, 상태의 재귀 갱신, 연속과 이산 시간; 수식 독서에는 미분과 선형대수.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Attention Is All You Need](https://arxiv.org/abs/1706.03762) | **개념 준비**: Attention·위치 정보·인코더/디코더 | 현재 토큰이 다른 위치의 정보를 읽는 구조 그림과 Attention 설명 |
+| 2. [Mamba: Linear-Time Sequence Modeling with Selective State Spaces](https://arxiv.org/abs/2312.00752) · [블로그 해설]({{< relref "posts/mamba-ssm-review" >}}) | **개념 준비**: 입력 의존 상태 갱신·선택 메커니즘 | 입력에 따라 바뀌는 값과 selective scan의 역할 |
+| 3. [Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality](https://arxiv.org/abs/2405.21060) · [블로그 해설]({{< relref "posts/mamba2-review" >}}) | **개념 준비**: 구조화된 Attention·상태 공간 이중성·청크 계산 | 재귀와 행렬 표현의 대응, 청크 안과 청크 사이 계산 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘요약 기억과 Attention을 함께 쓰는 구조 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: Hymba: A Hybrid-head Architecture for Small Language Models
@@ -31,11 +77,11 @@ draft: false
 | 추론 효율 | **$O(1)$ per token** | $O(L)$ (KV cache) |
 | 로컬 패턴 | 보통 | 보통 |
 
-어느 쪽도 단독으로 완벽하지 않다. **SSM의 효율성**과 **Attention의 표현력**을 결합하는 것이 자연스러운 방향이다.
+두 방식에는 각각 한계가 있다. Hymba는 **SSM의 효율성**과 **Attention의 표현력**을 결합해 이를 보완한다.
 
 ### 기존 하이브리드의 한계
 
-Jamba(AI21), Griffin(Google) 등 기존 하이브리드는 SSM 레이어와 Attention 레이어를 **교차 배치**한다:
+Jamba(AI21), Griffin(Google) 등 기존 하이브리드는 SSM 레이어와 Attention 레이어를 **교차 배치**한다.
 
 ```
 [Mamba] → [Attention] → [Mamba] → [Attention] → ...
@@ -72,6 +118,8 @@ Input
 - Attention 헤드가 **정밀한 토큰 간 관계** 포착
 - 같은 레이어에서 두 관점이 동시에 작동 → **정보 흐름이 풍부**
 - 레이어 교차보다 **세밀한 통합** 가능
+
+레이어를 번갈아 놓는 하이브리드에서는 입력이 SSM과 Attention을 순서대로 지난다. Hymba의 헤드 수준 결합에서는 같은 블록 안에서 두 경로의 출력을 함께 다룬다. 아래 구조를 읽을 때는 경로별로 무엇을 기억하는지와 두 출력이 어디서 합쳐지는지를 나눠 보면 된다. 메타 토큰과 캐시 공유는 그 기본 구조 위에 붙는 별도의 설계다.
 
 ---
 
@@ -113,7 +161,7 @@ Transformer에서 관찰되는 **attention sink** 현상 — 모델이 첫 번�
 
 ### SSM 헤드 vs Attention 헤드 비율
 
-Hymba는 SSM 헤드를 **다수**, Attention 헤드를 **소수**로 배치한다. 대부분의 시퀀스 처리는 SSM으로 충분하고, Attention은 ICL 등 정밀한 추론에만 필요하기 때문이다.
+Hymba는 SSM 헤드를 **다수**, Attention 헤드를 **소수**로 배치한다. 대부분의 시퀀스 처리는 SSM으로 충분하고 Attention은 ICL 등 정밀한 추론에만 필요하기 때문이다.
 
 이 비율은 모델 크기와 용도에 따라 조정 가능하다.
 
@@ -215,3 +263,16 @@ Mamba-3와 함께 보면, SSM 계열의 발전이 두 축으로 진행되고 있
 - **Hymba**: SSM과 Attention의 최적 결합 방법론
 
 장기적으로는 이 두 축이 합쳐져, Mamba-3 수준의 개선된 SSM을 Hymba 스타일로 Attention과 융합하는 방향으로 갈 것으로 예상된다.
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 요약 기억과 Attention을 함께 쓰는 구조 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[서베이\] 해마를 어떻게 구현할 것인가 — attention 옆에 기억을 따로 두는 방법들]({{< relref "posts/hippocampal-memory-attention-survey" >}}) — 비슷한 경험을 구분해 저장하고 다시 찾는 기능 나누기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

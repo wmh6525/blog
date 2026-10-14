@@ -2,6 +2,8 @@
 
 ML/AI 연구 노트, 논문 리뷰, 코드 구현 기록을 위한 블로그.
 
+처음 읽는 독자는 [AI 기초 설명](content/ai-basics.md) → [학습 순서](content/learn.md)에서 시작할 수 있다. [용어 사전](content/ai-glossary.md)과 [선수 논문 지도](content/paper-prerequisites.md)를 함께 제공하며, 각 글의 첫머리와 끝에 사전 개념·읽기 목표·앞뒤 글을 연결했다.
+
 Hugo + GitHub Pages로 운영. 마크다운을 push하면 자동 배포.
 
 ---

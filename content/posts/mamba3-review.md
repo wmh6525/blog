@@ -9,6 +9,51 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [문장을 읽으며 기억하는 모델]({{< relref "learn" >}}#memory) · 6/13
+
+같은 크기의 기억도 표현과 갱신 방법에 따라 성능이 달라질 수 있다. 이 글은 상태를 어떤 숫자로 표현하는지, 시간 단계를 어떻게 계산하는지, 정보를 어떻게 읽고 쓰는지를 나눠 설명한다. 세 변경의 역할을 구분한 다음 실험을 보자.
+
+**먼저 알아둘 말**
+
+- [상태·SSM]({{< relref "ai-glossary" >}}#state): 상태는 이전까지 읽은 정보를 다음 단계에 전달하는 내부 값이다. SSM은 이 상태가 입력에 따라 바뀌고 출력을 만드는 관계를 모델링한다.
+- [파라미터·가중치]({{< relref "ai-glossary" >}}#parameter): 모델 안에서 학습으로 조정하는 숫자. 모든 내부 숫자가 항상 학습 대상인 것은 아니다.
+- [Ablation]({{< relref "ai-glossary" >}}#ablation): 구성 요소를 빼거나 바꿔 결과를 비교하는 실험. 어떤 요소가 효과에 기여하는지 확인할 때 쓴다.
+
+**이번 글의 목표:** 상태 표현·갱신 근사·입출력 변경을 구분하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] Mamba-2: SSM과 Attention의 이중성을 밝히다]({{< relref "posts/mamba2-review" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **1. 동기: 선형 모델의 세 가지 한계** → **5. Mamba-3 아키텍처 블록** → **6. 실험 결과**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터·행렬, 상태의 재귀 갱신, 연속과 이산 시간; 수식 독서에는 미분과 선형대수.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Mamba: Linear-Time Sequence Modeling with Selective State Spaces](https://arxiv.org/abs/2312.00752) · [블로그 해설]({{< relref "posts/mamba-ssm-review" >}}) | **개념 준비**: 입력 의존 상태 갱신·선택 메커니즘 | 입력에 따라 바뀌는 값과 selective scan의 역할 |
+| 2. [Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality](https://arxiv.org/abs/2405.21060) · [블로그 해설]({{< relref "posts/mamba2-review" >}}) | **앞선 모델과의 비교**: 구조화된 Attention·상태 공간 이중성·청크 계산 | 재귀와 행렬 표현의 대응, 청크 안과 청크 사이 계산 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘상태 표현·갱신 근사·입출력 변경을 구분하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: Mamba-3: Improved Sequence Modeling using State Space Principles
@@ -21,13 +66,15 @@ draft: false
 
 ## 1. 동기: 선형 모델의 세 가지 한계
 
-Mamba-2, Gated DeltaNet(GDN) 등 sub-quadratic 모델이 Transformer에 필적하는 성능을 보이지만, 세 가지 근본적 한계가 남아 있다:
+Mamba-2, Gated DeltaNet(GDN) 등 sub-quadratic 모델은 Transformer에 필적하는 성능을 보인다. 다만 다음 세 가지 한계는 남아 있다.
 
 1. **표현력 부족**: Mamba-2는 $A$를 스칼라로 단순화하면서 표현력을 희생 → 추론 효율 대비 성능 열화
 2. **상태 추적 불능**: 실수 고유값 제약으로 parity 같은 단순 state-tracking 과제도 해결 불가
 3. **하드웨어 비효율**: 이론적으로 선형 추론이지만, 실제 디코딩의 arithmetic intensity가 ~2.5 ops/byte에 불과 → GPU 연산 자원 대부분이 유휴
 
 > Mamba-3의 접근: **추론 우선(inference-first)** 관점에서, SSM 원리에 기반한 세 가지 방법론적 개선을 도입한다.
+
+세 개선은 서로 다른 부분을 바꾼다. 이산화는 연속 상태를 시퀀스 단계로 옮기는 근사를, 복소수 상태는 기억의 표현을, MIMO는 한 상태를 읽고 쓰는 입출력 구조를 다룬다. 아래 절을 읽을 때 이 역할을 나눠 두면 여러 변경이 하나의 블록에서 어떻게 만나는지 볼 수 있다. 실험에서는 각 변경을 따로 뺀 결과와 전체 모델 결과를 구분해 살펴보면 된다.
 
 ---
 
@@ -272,3 +319,16 @@ Mamba-3는 "더 빠른 Mamba"가 아니라, SSM의 **이론적 기반을 재정�
 4. **Conv1d 제거**. Exp-Trapezoidal 이산화가 코어 재귀 내에서 암묵적 컨볼루션을 수행하므로, 별도의 short convolution이 불필요해졌다. 아키텍처의 단순화는 항상 좋은 신호다.
 
 SancMamba 프로젝트에서 특히 관련 있는 것은 **복소수 상태**다 — 바이트 수준의 반복 패턴(UTF-8 continuation bytes 등)에서 회전 동역학이 유용할 수 있다. 또한 MIMO의 추론 효율화는 바이트 시퀀스의 긴 디코딩에서 직접적으로 도움이 될 것이다.
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 상태 표현·갱신 근사·입출력 변경을 구분하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[서베이\] Mamba/SSM 계열 모델 완전 정리 — HiPPO에서 Nemotron-H까지]({{< relref "posts/mamba-family-complete-survey" >}}) — 모델 이름을 기억 저장·조회 방식으로 분류하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

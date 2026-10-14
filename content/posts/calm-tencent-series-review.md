@@ -9,6 +9,52 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [작은 단위를 묶어 표현하기]({{< relref "learn" >}}#representation) · 9/10
+
+텍스트 조각을 묶어 숫자 표현으로 예측하려면 묶는 방법과 학습 목표, 글로 되돌리는 방법이 함께 필요하다. 이 시리즈는 그 선택들이 어떻게 연결되는지 다룬다. 처음에는 각 논문이 이 세 부분 중 어디를 바꾸는지 구분해 읽자.
+
+**먼저 알아둘 말**
+
+- [패치·청크]({{< relref "ai-glossary" >}}#patch): 작은 단위 여러 개를 한 묶음으로 만든 것. 이미지 패치, 바이트 패치, 문서 청크는 서로 다른 대상을 묶는다.
+- [잠재 표현]({{< relref "ai-glossary" >}}#latent): 모델 내부에서 사용하는 중간 표현. 사람이 읽는 문장이나 그림 그대로가 아니라 계산을 위한 형태다.
+- [손실 함수]({{< relref "ai-glossary" >}}#loss): 예측이 목표에서 얼마나 벗어났는지 계산하는 기준. 학습에서는 보통 이 값을 줄이려 한다.
+
+**이번 글의 목표:** 묶음 표현·예측 목표·출력 복원의 관계 이해하기.
+
+**이 학습 경로의 앞 글:** [\[서베이\] 연속 의미 공간에서 예측하는 언어 모델 — Discrete Token을 넘어서 (LCM, Coconut, CALM, Diffusion LM, JEPA)]({{< relref "posts/continuous-vector-language-models" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **1. 핵심 동기** → **2. 아키텍처** → **7. 한계**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 확률 분포를 평가하는 scoring rule, 여러 토큰의 묶음, 연속 표현, 예측과 텍스트 복원.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Attention Is All You Need](https://arxiv.org/abs/1706.03762) | **개념 준비**: Attention·위치 정보·인코더/디코더 | 현재 토큰이 다른 위치의 정보를 읽는 구조 그림과 Attention 설명 |
+| 2. [Language Generation with Strictly Proper Scoring Rules](https://arxiv.org/abs/2405.18906) | **개념 준비**: 확률 예측 평가·proper scoring rule | 예측 분포를 평가하는 학습 목표와 로그 점수의 관계 |
+| 3. [Beyond Next Token Prediction: Patch-Level Training for Large Language Models](https://arxiv.org/abs/2407.12665) | **개념 준비**: 토큰 묶음·패치 수준 학습 | 예측 단위를 다음 토큰에서 묶음으로 바꾸는 학습 구성 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘묶음 표현·예측 목표·출력 복원의 관계 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 들어가며 — Tencent WeChat AI의 4편 시리즈
 
 CALM은 단독 논문이 아니라 **Chenze Shao, Fandong Meng, Jie Zhou** (Tencent WeChat AI Pattern Recognition Center) 그룹의 **4편 시리즈가 합류한 정점**이다:
@@ -24,7 +70,7 @@ CALM은 단독 논문이 아니라 **Chenze Shao, Fandong Meng, Jie Zhou** (Tenc
         Scoring Rules + Patch + Energy Score를 언어에서 통합
 ```
 
-병행 작품: **SLED** (NeurIPS 2025, 음성 도메인) — 같은 그룹의 cross-modality 확장.
+같은 그룹은 음성 도메인을 다루는 **SLED** (NeurIPS 2025)도 발표했다. 시리즈와 나란히 진행한 cross-modality 확장이다.
 
 이 글은 이 5편을 차례로 다루되, **모든 수식을 (1) 직관 → (2) 수식 → (3) 왜 그렇게 설계 → (4) ablation** 순으로 분해한다.
 
@@ -65,6 +111,8 @@ K개 토큰을 단일 벡터로 묶으면 시퀀스 길이가 1/K → autoregres
 - 온도 샘플링 (softmax temperature는 어떻게?)
 
 → CALM은 이 셋을 한꺼번에 해결하는 **likelihood-free toolkit**을 제안한다.
+
+연속 공간에서 예측한다는 것은 텍스트를 숫자로 바꾸는 데서 끝나지 않는다. 모델이 다음에 예측할 단위를 어떻게 묶을지, 가능한 여러 출력을 어떤 손실로 다룰지, 예측한 표현을 어떻게 다시 텍스트로 만들지가 함께 정해져야 한다. 아래 패치 구성·scoring rule·디코더 설명은 이 세 질문에 각각 대응한다.
 
 ---
 
@@ -573,3 +621,16 @@ Scoring Rules for LM (학습 목적 함수 일반화)
 ### 저자
 - [Chenze Shao homepage](https://shaochenze.github.io/)
 - [DBLP](https://dblp.org/pid/227/3123.html)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 묶음 표현·예측 목표·출력 복원의 관계 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[논문 리뷰\] Hourglass Diffusion Transformers — 메가픽셀에서 DiT의 99% 연산을 절약하다]({{< relref "posts/hourglass-dit-review" >}}) — 이미지의 해상도를 바꾸며 계산하는 구조 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

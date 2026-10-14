@@ -9,9 +9,55 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [여러 빈칸을 복원하며 글 만들기]({{< relref "learn" >}}#diffusion) · 1/5
+
+한 조각씩 글을 이어 쓰는 대신, 여러 빈칸을 조금씩 채워 문장을 완성하는 방법을 생각해 보자. 이 글은 텍스트 확산 모델의 지도다. 학습 때 입력을 가리는 과정과 생성 때 복원하는 과정을 나눠 읽으면 된다.
+
+**먼저 알아둘 말**
+
+- [확산·디노이징]({{< relref "ai-glossary" >}}#diffusion): 데이터를 훼손하는 과정과 그 훼손을 되돌리는 복원 과정을 다루는 생성 방식. 텍스트에서는 일부 위치를 가리는 방식도 사용한다.
+- [자기회귀·자회귀]({{< relref "ai-glossary" >}}#autoregressive): 이미 나온 내용을 바탕으로 다음 단위를 예측하는 방식. 언어 모델에서는 다음 토큰을 이어서 만드는 과정으로 생각하면 된다.
+- [토큰·토크나이저]({{< relref "ai-glossary" >}}#token): 토큰은 모델이 처리하는 텍스트 조각이고, 토크나이저는 글을 그 조각으로 나누는 도구다. 토큰 하나가 단어 하나와 같지는 않다.
+
+**이번 글의 목표:** 순차 생성과 반복 복원 생성의 차이 이해하기.
+
+**이 학습 경로의 앞 글:** [AI 기초 설명]({{< relref "ai-basics" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **5. ★ 핵심 통찰: Masked Diffusion = 가중 MLM** → **13. 한계와 도전** → **15. 한눈에 보는 핵심 모델 비교**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 조건부 확률, 확률 분포, 가리는 과정과 복원 과정; 이론 유도에는 기댓값과 로그.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2006.11239) | **개념 준비**: 노이즈 추가·역방향 복원·확산 단계 | 훼손과 복원을 나눈 생성 과정 그림 |
+| 2. [Structured Denoising Diffusion Models in Discrete State-Spaces](https://arxiv.org/abs/2107.03006) | **개념 준비**: 이산 상태 전이·마스킹·역확산 | 연속 노이즈 대신 토큰 상태를 바꾸는 과정 |
+| 3. [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805) | **개념 준비**: 양방향 문맥·마스크 예측·사전학습 | 입력 표현과 가려진 토큰을 예측하는 사전학습 목표 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘순차 생성과 반복 복원 생성의 차이 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 왜 Diffusion Language Model인가?
 
-표준 LLM(GPT, LLaMA)은 **자회귀(autoregressive)** — 토큰을 **하나씩 순차적으로** 생성한다:
+표준 LLM(GPT, LLaMA)은 **자회귀(autoregressive)** 방식으로 토큰을 **하나씩 순차적으로** 생성한다.
 
 $$P(x_1, \ldots, x_T) = \prod_{t=1}^{T} P(x_t \mid x_{\lt t})$$
 
@@ -35,6 +81,8 @@ $$P(x_1, \ldots, x_T) = \prod_{t=1}^{T} P(x_t \mid x_{\lt t})$$
 2. **Discrete DLM**: 토큰 알파벳에 직접 stochastic corruption
 
 이 두 갈래의 진화를 50+ 논문으로 추적한다.
+
+텍스트 확산을 읽을 때는 학습과 생성을 나눠 생각하면 좋다. 학습에서는 훼손한 입력에서 원래 토큰을 복원하도록 가르치고, 생성에서는 그 복원 과정을 여러 단계로 적용한다. 여러 위치를 함께 예측할 수 있다는 성질과 적은 시간에 답을 완성한다는 결과는 별도로 확인해야 한다. 반복 횟수와 매 단계의 계산량이 뒤의 속도 비교에 함께 들어가기 때문이다.
 
 ---
 
@@ -654,3 +702,16 @@ Mask는 흡수 상태 → GIDD의 hybrid noise가 해결.
 ### 서베이
 - [A Survey on Diffusion Language Models (arXiv:2508.10875)](https://arxiv.org/abs/2508.10875)
 - [Quokka Scaling Laws (arXiv:2510.03280)](https://arxiv.org/abs/2510.03280)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 순차 생성과 반복 복원 생성의 차이 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[논문 리뷰\] SEDD 심화 — Score Entropy 손실의 수식 유도와 학습/추론 완전 해부]({{< relref "posts/sedd-deep-review" >}}) — 이산 상태 사이 확률 비율을 학습한다는 뜻 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

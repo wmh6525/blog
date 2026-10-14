@@ -8,11 +8,57 @@ math: true
 toc: true
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [문장을 읽으며 기억하는 모델]({{< relref "learn" >}}#memory) · 12/13
+
+글을 일정 길이로 자르는 것과 뜻이 바뀌는 경계에서 자르는 것은 다를 수 있다. 이 프로젝트는 더 작은 입력 단위에서 출발해 경계를 배우려는 시도다. 잘 묶였는지를 청크 길이만으로 판단할 수 있는지 생각하며 실패 사례를 읽자.
+
+**먼저 알아둘 말**
+
+- [바이트]({{< relref "ai-glossary" >}}#byte): 컴퓨터가 데이터를 저장하는 단위. 글자를 바이트로 읽는 모델은 고정된 단어 조각 대신 더 작은 데이터 단위에서 출발한다.
+- [패치·청크]({{< relref "ai-glossary" >}}#patch): 작은 단위 여러 개를 한 묶음으로 만든 것. 이미지 패치, 바이트 패치, 문서 청크는 서로 다른 대상을 묶는다.
+- [상태·SSM]({{< relref "ai-glossary" >}}#state): 상태는 이전까지 읽은 정보를 다음 단계에 전달하는 내부 값이다. SSM은 이 상태가 입력에 따라 바뀌고 출력을 만드는 관계를 모델링한다.
+
+**이번 글의 목표:** 문자 경계와 의미 경계가 같은지 확인하는 실험 이해하기.
+
+**이 학습 경로의 앞 글:** [\[서베이\] 해마를 어떻게 구현할 것인가 — attention 옆에 기억을 따로 두는 방법들]({{< relref "posts/hippocampal-memory-attention-survey" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **동기** → **2. Mamba SSM 핵심 메커니즘** → **4. SancMamba 아키텍처**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터·행렬, 상태의 재귀 갱신, 연속과 이산 시간; 수식 독서에는 미분과 선형대수.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [The Forward-Forward Algorithm: Some Preliminary Investigations](https://arxiv.org/abs/2212.13345) · [블로그 해설]({{< relref "posts/forward-forward-review" >}}) | **개념 준비**: positive/negative 입력·층별 goodness | 두 forward pass와 층별 학습 목표 |
+| 2. [Mamba: Linear-Time Sequence Modeling with Selective State Spaces](https://arxiv.org/abs/2312.00752) · [블로그 해설]({{< relref "posts/mamba-ssm-review" >}}) | **개념 준비**: 입력 의존 상태 갱신·선택 메커니즘 | 입력에 따라 바뀌는 값과 selective scan의 역할 |
+| 3. [Byte Latent Transformer: Patches Scale Better Than Tokens](https://arxiv.org/abs/2412.09871) · [블로그 해설]({{< relref "posts/blt-byte-level-lm-survey" >}}) | **개념 준비**: 엔트로피 패칭·바이트 인코더/디코더 | 경계를 정하고 묶음을 백본에 넘기는 흐름 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘문자 경계와 의미 경계가 같은지 확인하는 실험 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 동기
 
 대부분의 LLM은 BPE 같은 토크나이저에 의존한다. 토크나이저는 학습 데이터의 통계에 기반해 고정된 서브워드 단위를 만드는데, 이 고정 단위가 모델이 "의미"를 다루는 최소 해상도를 결정한다. 한국어처럼 교착어인 경우 형태소 경계와 BPE 토큰 경계가 불일치하는 문제가 빈번하다.
 
-**SancMamba**는 이 고정 토큰화를 없애고, **바이트(UTF-8)에서 출발해 모델 스스로 의미 단위를 계층적으로 발견**하게 하려는 시도다.
+**SancMamba**는 이 고정 토큰화를 없애고 **바이트(UTF-8)에서 출발해 모델 스스로 의미 단위를 계층적으로 발견**하게 하려는 시도다.
 
 ---
 
@@ -20,7 +66,7 @@ toc: true
 
 ### 1-1. Forward-Forward Algorithm
 
-역전파(BP) 대신 두 번의 forward pass(positive/negative)로 레이어별 독립 학습하는 Hinton의 방법론을 조사했다. 각 레이어의 local loss는:
+역전파(BP) 대신 두 번의 forward pass(positive/negative)로 각 레이어를 독립적으로 학습하는 Hinton의 방법론을 조사했다. 레이어별 local loss는 다음과 같다.
 
 $$\mathcal{L} = \log(1 + e^{-(g_{pos} - \theta)}) + \log(1 + e^{g_{neg} - \theta})$$
 
@@ -45,7 +91,7 @@ MLP의 구조적 대안으로 조사했다. 엣지에 학습 가능한 B-Spline 
 
 $$\phi(x) = w_b \cdot \text{SiLU}(x) + w_s \cdot \text{Spline}(x)$$
 
-해석 가능성과 과학적 태스크 스케일링에서 장점이 있지만, MLP 대비 ~10x 느리고 LLM 규모 미검증이라 현 단계에서는 미채택.
+해석 가능성과 과학적 태스크 스케일링에서 장점이 있지만 MLP 대비 ~10x 느리고 LLM 규모 미검증이라 현 단계에서는 미채택.
 
 ---
 
@@ -119,7 +165,7 @@ boundary_mask = Bernoulli(sharpen(boundary_prob))  # 학습 시
 chunked = scatter_mean(hidden, cumsum(boundary_mask))
 ```
 
-별도 파라미터 없이 SSM의 부산물을 재활용하는 우아한 설계지만, 여기에 근본적인 문제가 있었다.
+별도 파라미터 없이 SSM의 부산물을 재활용하는 우아한 설계지만 여기에 근본적인 문제가 있었다.
 
 ---
 
@@ -151,6 +197,8 @@ $\Delta(t)$가 **두 역할**을 동시에 담당한다:
 - 추가 역할: 청크 경계 신호
 
 하나의 파라미터가 두 목적을 동시 최적화 → 둘 다 차선이 된다.
+
+경계가 생겼다는 사실만으로 의미 단위를 찾았다고 보기는 어렵다. 바이트를 일정 길이로 나눈 결과와 의미에 따라 묶은 결과는 겉으로 비슷한 청크 수를 만들 수도 있다. 그래서 이 단계에서는 청크 길이의 분포와 실제 경계가 놓인 위치를 함께 살펴본다. 아래 해결 방향도 압축이 일어나는지와 원하는 경계가 학습되는지를 구분해 확인하는 데 초점을 둔다.
 
 ---
 
@@ -191,3 +239,16 @@ $g(t) = \sigma(\text{boundary_head}(h(t)))$로, $g \to 1$이면 이전 상태를
 ---
 
 *이 시리즈는 SancMamba 모델의 설계, 구현, 실험 과정을 기록합니다.*
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 문자 경계와 의미 경계가 같은지 확인하는 실험 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [Hymba-SANC: 유동 청킹 기반 개념 토큰 언어 모델 구현 가이드]({{< relref "posts/hymba-sanc-implementation-guide" >}}) — 청킹·기억·상위 예측을 모듈로 연결하는 설계 따라가기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

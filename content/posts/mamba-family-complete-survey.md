@@ -9,6 +9,53 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [문장을 읽으며 기억하는 모델]({{< relref "learn" >}}#memory) · 7/13
+
+모델 이름이 많아도 과거를 무엇에 저장하고 어떻게 읽는지로 나누면 지도를 만들 수 있다. 이 글은 SSM과 주변 모델의 계보를 정리한다. 앞선 개별 리뷰를 읽은 뒤 비교표에서 같은 문제를 서로 어떻게 해결했는지 복습하면 좋다.
+
+**먼저 알아둘 말**
+
+- [상태·SSM]({{< relref "ai-glossary" >}}#state): 상태는 이전까지 읽은 정보를 다음 단계에 전달하는 내부 값이다. SSM은 이 상태가 입력에 따라 바뀌고 출력을 만드는 관계를 모델링한다.
+- [Attention]({{< relref "ai-glossary" >}}#attention): 현재 계산에 필요한 다른 위치의 정보를 가중치를 주어 섞는 장치. 가중치가 크다는 사실만으로 판단의 원인을 확정할 수는 없다.
+- [벤치마크·베이스라인]({{< relref "ai-glossary" >}}#benchmark): 벤치마크는 비교를 위한 시험이고, 베이스라인은 비교의 출발점이 되는 방법이다. 결과는 시험 조건과 함께 읽는다.
+
+**이번 글의 목표:** 모델 이름을 기억 저장·조회 방식으로 분류하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] Mamba-3: SSM 원리로 추론 효율성의 Pareto 프론티어를 진전시키다]({{< relref "posts/mamba3-review" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **5. 병렬 아키텍처 (SSM-Adjacent)** → **11. 핵심 통찰**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터·행렬, 상태의 재귀 갱신, 연속과 이산 시간; 수식 독서에는 미분과 선형대수.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [HiPPO: Recurrent Memory with Optimal Polynomial Projections](https://arxiv.org/abs/2008.07669) · [블로그 해설]({{< relref "posts/hippo-review" >}}) | **개념 준비**: 상태·과거 압축·다항식 투영 | 기억을 계수로 저장하고 새 입력으로 갱신하는 문제 설정 |
+| 2. [Efficiently Modeling Long Sequences with Structured State Spaces](https://arxiv.org/abs/2111.00396) | **개념 준비**: SSM·이산화·재귀와 컨볼루션 | 상태 공간식과 긴 시퀀스를 효율적으로 계산하는 구조 |
+| 3. [Mamba: Linear-Time Sequence Modeling with Selective State Spaces](https://arxiv.org/abs/2312.00752) · [블로그 해설]({{< relref "posts/mamba-ssm-review" >}}) | **개념 준비**: 입력 의존 상태 갱신·선택 메커니즘 | 입력에 따라 바뀌는 값과 selective scan의 역할 |
+| 4. [Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality](https://arxiv.org/abs/2405.21060) · [블로그 해설]({{< relref "posts/mamba2-review" >}}) | **개념 준비**: 구조화된 Attention·상태 공간 이중성·청크 계산 | 재귀와 행렬 표현의 대응, 청크 안과 청크 사이 계산 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘모델 이름을 기억 저장·조회 방식으로 분류하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 1. SSM 계보 개관
 
 ```
@@ -20,6 +67,8 @@ HiPPO (2020) → S4 (2021) → S4D/S5 (2022) → H3 (2023) → Mamba (2023)
                                                             ↓
                                               비전: Vim, VMamba, MambaVision
 ```
+
+계보를 읽을 때는 연도 외에 상태를 어떻게 저장하고 갱신하는지도 함께 보면 좋다. 입력과 무관한 전이에서 입력에 따라 달라지는 전이로, 다시 Attention과 결합하는 구조로 옮겨 갈 때 해결하려는 문제가 달라진다. 아래 표의 속도·메모리·표현력은 그 선택의 결과다. 같은 선형 시간 계열 안에서도 과거 정보를 읽는 방식은 모델마다 다르다.
 
 ---
 
@@ -47,7 +96,7 @@ HiPPO (2020) → S4 (2021) → S4D/S5 (2022) → H3 (2023) → Mamba (2023)
 ### S5 (ICLR 2023, Oral)
 
 - **저자**: Jimmy Smith et al. (Stanford)
-- **기여**: 다수의 SISO SSM 대신 단일 **MIMO SSM**을 사용하고, 컨볼루션 대신 **parallel scan**으로 계산
+- **기여**: 다수의 SISO SSM 대신 단일 **MIMO SSM**을 사용하고 컨볼루션 대신 **parallel scan**으로 계산
 - **결과**: Path-X 98.5% (LRA 최고 난이도 과제)
 - **Mamba와의 관계**: Parallel scan 알고리즘이 Mamba의 하드웨어 친화적 selective scan에 직접 영감
 
@@ -140,7 +189,7 @@ HiPPO (2020) → S4 (2021) → S4D/S5 (2022) → H3 (2023) → Mamba (2023)
 ### MEGA (ICLR 2023)
 
 - **저자**: Xuezhe Ma et al. (USC / Meta)
-- **기여**: 지수적 이동 평균(EMA)을 게이트 어텐션에 결합하여 위치 인식 로컬 의존성 유도
+- **기여**: 지수적 이동 평균(EMA)을 게이트 어텐션에 결합해 위치 인식 로컬 의존성 유도
 - **결과**: LRA, 번역, 언어 모델링에서 Transformer와 SSM 모두 개선
 
 ---
@@ -296,13 +345,13 @@ HiPPO (2020) → S4 (2021) → S4D/S5 (2022) → H3 (2023) → Mamba (2023)
 
 ### "SSM vs Attention" 경쟁의 현재 위치
 
-- **순수 SSM** (Falcon Mamba): 충분한 데이터면 경쟁 가능하지만, ICL/리콜에서 약점
+- **순수 SSM** (Falcon Mamba): 충분한 데이터면 경쟁 가능하지만 ICL/리콜에서 약점
 - **순수 Transformer**: 성능은 좋지만 추론 비용 $O(L^2)$
 - **하이브리드** (Nemotron-H, Hymba): 현재 최적해. 대부분의 처리는 SSM, 정밀 추론은 소수의 Attention 레이어
 
 ### Mamba-2의 SSD가 통합한 것들
 
-Mamba-2의 State Space Duality 프레임워크는 다음을 **하나의 수학적 구조**(semi-separable matrix)로 통합했다:
+Mamba-2의 State Space Duality 프레임워크는 다음 방법들을 **하나의 수학적 구조**(semi-separable matrix)로 통합했다.
 
 | 모델 | SSD 관점 |
 |------|---------|
@@ -346,3 +395,16 @@ Mamba-2의 State Space Duality 프레임워크는 다음을 **하나의 수학�
 | VMamba | 2401.10166 |
 | MambaVision | 2407.08083 |
 | Falcon Mamba | 2410.05355 |
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 모델 이름을 기억 저장·조회 방식으로 분류하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[코드 분석\] Mamba — state-spaces/mamba 소스코드 완전 분석]({{< relref "posts/mamba-code-analysis" >}}) — 수식의 상태 갱신과 구현의 함수 호출 대응시키기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

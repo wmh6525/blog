@@ -9,6 +9,52 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [자료를 찾아 답하는 AI]({{< relref "learn" >}}#rag) · 12/17
+
+검색어가 부족할 때 질문에 답하는 듯한 가상 문서를 먼저 만들어 검색에 쓸 수 있다. 여기서 가상 문서는 사실을 확정하는 답이 아니라 검색을 돕는 중간 재료다. 이 연구는 실제 문서를 잘 찾았는지에 따라 그 생성 과정을 학습시킨다.
+
+**먼저 알아둘 말**
+
+- [RAG]({{< relref "ai-glossary" >}}#rag): 질문에 관련된 자료를 검색해 모델에 함께 제공하고 답변을 만드는 방식. 자료를 찾는 단계와 답을 쓰는 단계를 구분해서 본다.
+- [강화학습·보상]({{< relref "ai-glossary" >}}#rl): 행동의 결과에 대한 보상을 보고 행동 선택 방식을 학습하는 방법. 보상은 무엇을 잘했다고 평가할지 정한 신호다.
+- [검색기·리랭킹]({{< relref "ai-glossary" >}}#retriever): 검색기는 후보 문서를 찾는다. 리랭킹은 그 후보를 다시 평가해 질문에 더 관련 있는 순서로 정렬한다.
+
+**이번 글의 목표:** 가상 문서의 목적이 실제 검색을 돕는 데 있음을 설명하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] Cycle-Consistent Search — 정답 라벨 없이 검색 에이전트를 학습시키는 법]({{< relref "posts/cycle-consistent-search-review" >}}).
+
+보상과 정책이 낯설다면 [강화학습 입문]({{< relref "posts/reinforcement-learning-beginner-guide" >}})의 앞부분을 먼저 읽자.
+
+**본문에서 먼저 볼 순서:** **2. 배경: HyDE와 그 한계** → **4. OPQE 아키텍처** → **6. 실험 결과**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터의 유사도, 관련/무관 예시의 비교, 검색과 생성의 구분.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Dense Passage Retrieval for Open-Domain Question Answering](https://arxiv.org/abs/2004.04906) · [블로그 해설]({{< relref "posts/retriever-training-survey" >}}) | **개념 준비**: 질문/문서 인코더·대조 학습·negative | 관련 문서와 오답 문서를 비교하는 학습 데이터 구성 |
+| 2. [Precise Zero-Shot Dense Retrieval without Relevance Labels](https://arxiv.org/abs/2212.10496) · [블로그 해설]({{< relref "posts/rag-query-optimization-survey" >}}) | **개념 준비**: 가상 문서·임베딩 검색 | 가상 문서를 생성하고 실제 문서 검색에 사용하는 순서 |
+| 3. [Proximal Policy Optimization Algorithms](https://arxiv.org/abs/1707.06347) · [블로그 해설]({{< relref "posts/reinforcement-learning-beginner-guide" >}}) | **개념 준비**: 정책·보상·정책 갱신 | 행동의 확률을 갱신하는 목적과 큰 변경을 제한하는 장치 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘가상 문서의 목적이 실제 검색을 돕는 데 있음을 설명하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: Rethinking On-policy Optimization for Query Augmentation
@@ -51,6 +97,8 @@ draft: false
 2. **유창한 ≠ 검색에 좋은**: "그럴듯해 보이는 문서"가 항상 좋은 검색 표현은 아님
 3. **Sparse 검색기(BM25)에서 부정적 효과**: 장황한 가상 문서가 **잡음 단어**를 추가 → 어휘 매칭 방해
 4. **태스크/코퍼스 적응 불가**: LLM의 고정된 지식에 갇힘
+
+HyDE의 가상 문서는 정답 그 자체보다 검색에 쓸 표현을 만드는 중간 산출물이다. 따라서 그 문장이 그럴듯한지와 실제 관련 문서를 잘 찾아오는지는 다른 평가다. OPQE는 이 생성 단계에 검색 성능의 피드백을 연결한다. 아래 보상과 정책 갱신 설명을 볼 때는 가상 문서가 어떤 검색 결과를 만들었는지까지 한 경로로 따라가면 된다.
 
 ---
 
@@ -105,7 +153,7 @@ LLM 정책 π_θ
 
 ### 4.2 정책의 액션 공간
 
-DeepRetrieval은 "재작성된 질의" 를 출력 → 짧은 액션 공간
+DeepRetrieval은 재작성된 질의를 출력한다. 따라서 액션 공간이 짧다.
 **OPQE는 "가상 문서"를 출력** → 풍부한 액션 공간 + HyDE의 강점 보존
 
 ---
@@ -364,3 +412,16 @@ OPQE:          BM25 ↑, Dense ↑  ← 유일한 양쪽 개선
 - [HyDE 원논문 (arXiv:2212.10496)](https://arxiv.org/abs/2212.10496)
 - [DeepRetrieval (arXiv:2503.00223)](https://arxiv.org/abs/2503.00223)
 - [Query2Doc, Promptagator 등은 합성 데이터 서베이 참조](rag-synthetic-data-survey.md)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 가상 문서의 목적이 실제 검색을 돕는 데 있음을 설명하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[서베이\] RAG 검색 속도를 획기적으로 줄이는 방법들 — KV 캐시, 서브밀리초 인덱스, 예측적 프리페칭]({{< relref "posts/rag-latency-optimization" >}}) — 검색·입력 처리·생성 중 느린 단계 찾기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

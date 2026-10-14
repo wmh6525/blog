@@ -9,9 +9,54 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [도구를 쓰고 실험하는 AI]({{< relref "learn" >}}#agents) · 5/9
+
+오래 작업한 AI에게 모든 대화와 도구 결과를 계속 보여 주면 입력이 길어진다. 이 글은 기록을 줄이면서 다음 작업에 필요한 정보를 남기는 방법을 다룬다. 줄인 양뿐 아니라 목표·실패·근거 중 무엇이 남았는지도 살펴보자.
+
+**먼저 알아둘 말**
+
+- [컨텍스트·프롬프트]({{< relref "ai-glossary" >}}#context): 컨텍스트는 답을 만들 때 참고하는 입력과 이전 내용이다. 프롬프트는 모델에 제공하는 요청이나 자료를 가리킨다.
+- [압축·병목]({{< relref "ai-glossary" >}}#compression): 정보를 더 작은 표현에 담는 일. 저장량과 계산량을 줄일 수 있지만 어떤 정보가 남는지도 확인해야 한다.
+- [KV 캐시·프리필]({{< relref "ai-glossary" >}}#kv): KV 캐시는 Attention에 쓸 중간 계산 결과를 저장한 것이다. 프리필은 주어진 입력 문맥을 먼저 처리하는 단계다.
+
+**이번 글의 목표:** 긴 작업 기록에서 무엇을 줄이고 남기는지 이해하기.
+
+**이 학습 경로의 앞 글:** [\[리뷰\] Cairn — 범용 문제 해결 엔진 (54/54 Tencent 해킹 챌린지 우승 시스템)]({{< relref "posts/cairn-general-problem-solver" >}}).
+
+검색으로 자료를 가져오는 흐름은 [RAG 전체 흐름]({{< relref "posts/rag-survey-2026" >}})에서 먼저 볼 수 있다.
+
+**본문에서 먼저 볼 순서:** **1. 문제 정의와 분류** → **5. 아키텍처 층: 테스트타임 최적화형 메모리와 KV 압축** → **6. 이론화: 압축을 수학 문제로**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 도구 호출의 입력/출력, 실험 설계와 비교 조건, 검증과 재현의 구분.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Attention Is All You Need](https://arxiv.org/abs/1706.03762) | **개념 준비**: Attention·위치 정보·인코더/디코더 | 현재 토큰이 다른 위치의 정보를 읽는 구조 그림과 Attention 설명 |
+| 2. [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629) | **개념 준비**: 생각·행동·관측의 반복 | 추론 문장, 도구 호출, 도구 결과의 순서 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘긴 작업 기록에서 무엇을 줄이고 남기는지 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## Executive Summary
 
-**Context condensation**은 LLM이 소비하는 컨텍스트(대화 이력·도구 관측·긴 문서)를 더 짧은 표현으로 줄이는 모든 기법을 가리킨다. 에이전트 프레임워크에서는 *compaction*, *condenser*, *summarization*, 아키텍처 쪽에서는 *context compression*, *compressive memory*, 서빙 쪽에서는 *KV cache compression*이라고 부르지만, 2026년 들어 이들을 **하나의 문제**로 보는 시각이 자리잡았다.
+**Context condensation**은 LLM이 소비하는 컨텍스트(대화 이력·도구 관측·긴 문서)를 더 짧은 표현으로 줄이는 모든 기법을 가리킨다. 에이전트 프레임워크에서는 *compaction*, *condenser*, *summarization*, 아키텍처 쪽에서는 *context compression*, *compressive memory*, 서빙 쪽에서는 *KV cache compression*이라고 부르지만 2026년 들어 이들을 **하나의 문제**로 보는 시각이 자리잡았다.
 
 2026년 동향을 한 문장으로 요약하면 다음과 같다.
 
@@ -35,7 +80,7 @@ draft: false
 
 ### 1.1 왜 지금 문제가 되는가
 
-장기 실행 에이전트(코딩·딥리서치·웹 탐색)는 스텝마다 도구 관측이 누적되어 컨텍스트가 단조 증가한다. 컨텍스트 윈도우가 1M 토큰이어도 두 가지 문제가 남는다.
+오래 실행되는 에이전트(코딩·딥리서치·웹 탐색)는 스텝마다 도구 관측이 쌓여 컨텍스트가 계속 길어진다. 컨텍스트 윈도우가 1M 토큰이어도 두 가지 문제는 남는다.
 
 - **비용·지연**: 컨텍스트 길이에 비례해 prefill 비용과 KV 메모리가 증가한다. 요약 호출 자체가 수십 초 블로킹된다.
 - **Context rot**: 토큰이 늘수록 모델의 회상 정확도가 떨어진다. LOCA-bench는 환경 상태가 복잡해질수록 에이전트 성능이 일반적으로 하락함을 통제 실험으로 보였다.
@@ -53,6 +98,8 @@ Rate–Distortion View 논문의 분류를 빌리면, 컨텍스트 압축은 스
 | **아키텍처·서빙 층** | KV 캐시·순환 상태·fast weight | KV 축출/양자화, SSM 상태, Titans/HOPE형 연상 메모리 |
 
 세 층의 공통 실패는 동일하다: **질의를 알기 전에** attention 크기나 최근성으로 정보를 버린다.
+
+같은 ‘압축’이라도 무엇을 줄이는지는 다르다. 대화 요약은 모델이 읽을 문장을 바꾸고, soft token 방식은 그 내용을 다른 표현에 담으며, KV 압축은 모델 내부의 저장량을 줄인다. 따라서 압축률만 비교하면 서로 다른 비용과 손실을 섞게 된다. 아래 분류는 압축 위치와 보존해야 할 정보를 함께 읽기 위한 지도다.
 
 ---
 
@@ -103,10 +150,10 @@ Rate–Distortion View 논문의 분류를 빌리면, 컨텍스트 압축은 스
 
 **VISTA — LLM Agents Are Latent Context Managers (2026.06)**
 - 문제 진단: 모델은 자기 컨텍스트 한계를 **지각하지 못한다**(proprioceptively blind).
-- 워킹 메모리를 타입 있는 주소 지정 블록으로 표현하고, 토큰 사용량·최근성·아카이브 상태·잔여 예산을 **대시보드**로 노출. 아카이브 결정은 모델이 한다.
+- 워킹 메모리를 타입 있는 주소 지정 블록으로 표현하고 토큰 사용량·최근성·아카이브 상태·잔여 예산을 **대시보드**로 노출. 아카이브 결정은 모델이 한다.
 - LOCA-Bench에서 Gemini-3-Flash 22.7 → 50.7. 10K~1M 토큰 궤적에 걸쳐 모델 간 전이.
 
-두 논문은 학습이 필요 없고, 압축 정보를 버리지 않는다는 점에서 2.1과 정반대 극단에 있다. 실무에서는 이 둘의 결합(무손실 아카이브 + 학습된 요약)이 자연스러운 다음 단계다.
+두 논문은 학습이 필요 없고 압축 정보를 버리지 않는다는 점에서 2.1과 정반대 극단에 있다. 실무에서는 이 둘의 결합(무손실 아카이브 + 학습된 요약)이 자연스러운 다음 단계다.
 
 ### 2.4 언제 압축할지의 메타인지
 
@@ -133,7 +180,7 @@ Rate–Distortion View 논문의 분류를 빌리면, 컨텍스트 압축은 스
 | **Compaction Cliff** (2026.08) | 안전 규칙은 정확한 문구가 필요해 요약에 취약 | Claude Sonnet 4.6이 1회 컴팩션 후 안전 규칙 53%, 5회 후 10% 보존 |
 | **TRACE** (2026.08) | 압축이 최근 상호작용 영향력을 약화 | 차단 행동·반복 탐색 증가, 실행 간 불안정성 증가 (AppWorld) |
 
-Governance Decay는 여기에 **Compaction-Eviction Attack**을 추가한다 — 적대적 in-context 콘텐츠가 요약기를 편향시켜 정당한 정책을 누락시키게 하며, 최적화된 삽입은 평가한 모든 모델을 격파했다. 컨텍스트 관리 층이 새로운 **공격 표면**임을 뜻한다.
+Governance Decay는 여기에 **Compaction-Eviction Attack**을 추가한다 — 적대적 in-context 콘텐츠가 요약기를 편향시켜 정당한 정책을 누락시키게 하며 최적화된 삽입은 평가한 모든 모델을 격파했다. 컨텍스트 관리 층이 새로운 **공격 표면**임을 뜻한다.
 
 ### 대응: 타입별 보존 정책
 
@@ -159,7 +206,7 @@ Governance Decay는 여기에 **Compaction-Eviction Attack**을 추가한다 —
 
 ### 4.1 Gist / soft token의 한계와 돌파
 
-Gist token 계열(2023~)은 특수 토큰이 self-attention으로 컨텍스트 정보를 흡수하도록 학습한다(LLM-as-compressor). 2024년 종합 연구는 이 방식이 full attention 대비 세부 정보 손실이 크다는 점을 지적했고, 2026년 논문들은 세 방향으로 대응한다.
+Gist token 계열(2023~)은 특수 토큰이 self-attention으로 컨텍스트 정보를 흡수하도록 학습한다(LLM-as-compressor). 2024년 종합 연구는 이 방식이 full attention 대비 세부 정보 손실이 크다는 점을 지적했고 2026년 논문들은 세 방향으로 대응한다.
 
 - **ComprExIT — Context Compression via Explicit Information Transmission (2026.02)**: attention에 암묵적으로 맡기는 대신 정보 전달 경로를 명시적으로 설계.
 - **DAST**: 정보 밀도가 균일하지 않다는 전제에서 soft token을 동적으로 할당.
@@ -225,7 +272,7 @@ ACL 2026 서베이 *System-Aware KV Cache Optimization*이 분야 지도 역할�
 컴팩션을 처음으로 형식적으로 분석한 논문이다.
 
 - **주장 1**: 질의 집합에 답하기 위한 최소 컴팩션 예산은 해당 문제의 **one-way communication complexity**와 같다. 컴팩션은 "과거의 나"가 "미래의 나"에게 보내는 일방향 메시지이므로 통신 복잡도가 그대로 하한이 된다.
-- **주장 2**: **선택(selection)** 기반(상태 부분집합 유지 = KV 축출·토큰 가지치기)은 제한된 프로토콜 클래스이며, **생성(generation)** 기반(요약)이 특정 질의 집합에서 엄격히 우월하다.
+- **주장 2**: **선택(selection)** 기반(상태 부분집합 유지 = KV 축출·토큰 가지치기)은 제한된 프로토콜 클래스이며 **생성(generation)** 기반(요약)이 특정 질의 집합에서 엄격히 우월하다.
 - 두 게임이론 모델을 제시하고 Anthropic의 컴팩션 엔드포인트를 집합 멤버십 질의로 벤치마크한 사례 연구를 포함한다.
 
 실무적 함의: 어떤 태스크가 "선택으로 충분한지" 아니면 "생성이 필요한지"를 질의 집합의 통신 복잡도로 판단할 수 있다.
@@ -234,7 +281,7 @@ ACL 2026 서베이 *System-Aware KV Cache Optimization*이 분야 지도 역할�
 
 - KV 축출·프롬프트 가지치기·아키텍처 상태 유계화·에이전트 메모리 통합을 **하나의 rate-distortion 문제**로 통합: "자원 예산 하에서 어떤 정보를 어떤 충실도로 남겨 하류 태스크 효용을 보존할 것인가".
 - 7축 분류 체계로 스택 전 층의 방법을 균일하게 분류. 서빙 스택 기법을 에이전트 메모리로 전이하는 식의 **층 간 메커니즘 전이**를 제안.
-- 측정 공백 지적: 단일 턴 압축은 꼼꼼히 측정되지만, **에이전트가 실제로 하는 반복 컴팩션은 거의 측정되지 않는다**. 모든 층에 일관된 예산 제약을 유지하는 벤치마크가 없다.
+- 측정 공백 지적: 단일 턴 압축은 꼼꼼히 측정되지만 **에이전트가 실제로 하는 반복 컴팩션은 거의 측정되지 않는다**. 모든 층에 일관된 예산 제약을 유지하는 벤치마크가 없다.
 
 ---
 
@@ -344,3 +391,16 @@ NestedKV의 surprise-gated routing과 Compaction Cliff의 타입별 보존을 �
 - [Claude Cookbook — Context engineering: memory, compaction, tool clearing](https://platform.claude.com/cookbook/tool-use-context-engineering-context-engineering-tools)
 - [OpenHands — Context Condenser](https://docs.openhands.dev/sdk/guides/context-condenser)
 - [Dive into Claude Code: Design Space of AI Agent Systems (arXiv:2604.14228)](https://arxiv.org/abs/2604.14228)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 긴 작업 기록에서 무엇을 줄이고 남기는지 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[리서치\] LLM Harness 최적화와 오류 — 평가·에이전트 하네스 논문 30+ 종합]({{< relref "posts/llm-harness-optimization-errors" >}}) — 모델과 실행·채점 조건의 영향을 구분하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

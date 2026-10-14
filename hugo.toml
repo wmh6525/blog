@@ -22,7 +22,7 @@ hasCJKLanguage = true
 
   [params.homeInfoParams]
     Title = "Research Lab"
-    Content = "ML/AI 연구 노트 · 논문 리뷰 · 코드 구현 기록"
+    Content = "ML/AI 연구 노트 · 논문 리뷰 · 코드 구현 기록\n\n처음 읽는다면 [AI 기초 설명](/blog/ai-basics/)부터 시작하세요. [학습 순서](/blog/learn/)에서 관심 분야를 고르고, [선수 논문 지도](/blog/paper-prerequisites/)로 필요한 개념을 연결할 수 있습니다."
 
   [[params.socialIcons]]
     name = "github"
@@ -55,29 +55,34 @@ hasCJKLanguage = true
   weight = 1
 
 [[menu.main]]
+  name = "학습 순서"
+  url = "/learn/"
+  weight = 2
+
+[[menu.main]]
   name = "연구노트"
   url = "/tags/연구노트/"
-  weight = 2
+  weight = 3
 
 [[menu.main]]
   name = "논문리뷰"
   url = "/tags/논문리뷰/"
-  weight = 3
+  weight = 4
 
 [[menu.main]]
   name = "코드분석"
   url = "/tags/코드분석/"
-  weight = 4
+  weight = 5
 
 [[menu.main]]
   name = "태그"
   url = "/tags/"
-  weight = 5
+  weight = 6
 
 [[menu.main]]
   name = "검색"
   url = "/search/"
-  weight = 6
+  weight = 7
 
 # 검색 기능
 [outputs]

@@ -9,6 +9,51 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [도구를 쓰고 실험하는 AI]({{< relref "learn" >}}#agents) · 3/9
+
+같은 실험 순서라도 누가 다음 작업을 정하고 실패 기록을 어디에 남기는지에 따라 시스템이 달라진다. 이 글은 그 설계 선택들을 비교한다. 단계 이름보다 정보와 결정이 이동하는 경로를 먼저 따라가자.
+
+**먼저 알아둘 말**
+
+- [에이전트·도구]({{< relref "ai-glossary" >}}#agent): 에이전트는 목표를 위해 행동을 선택하고 그 결과를 보고 다음 행동을 정하는 시스템이다. 도구는 검색이나 코드 실행처럼 호출할 수 있는 기능이다.
+- [메모리·키·값]({{< relref "ai-glossary" >}}#memory): 메모리는 정보를 저장하고 다시 읽는 구조다. 키는 항목을 찾는 단서, 값은 그 항목에서 꺼내는 내용으로 생각하면 된다.
+- [Ablation]({{< relref "ai-glossary" >}}#ablation): 구성 요소를 빼거나 바꿔 결과를 비교하는 실험. 어떤 요소가 효과에 기여하는지 확인할 때 쓴다.
+
+**이번 글의 목표:** 누가 결정하고 어디에 기록하는지로 설계를 비교하기.
+
+**이 학습 경로의 앞 글:** [\[딥리서치 보고서\] AI Scientist 방법론 — 2025.06~2026.06 1년간 논문 종합]({{< relref "posts/scientist-agents-2025-2026-report" >}}).
+
+검색으로 자료를 가져오는 흐름은 [RAG 전체 흐름]({{< relref "posts/rag-survey-2026" >}})에서 먼저 볼 수 있다.
+
+**본문에서 먼저 볼 순서:** **1. 메모리 아키텍처** → **종합 — 9가지 핵심 권고** → **참고 자료 (핵심)**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 도구 호출의 입력/출력, 실험 설계와 비교 조건, 검증과 재현의 구분.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629) | **개념 준비**: 생각·행동·관측의 반복 | 추론 문장, 도구 호출, 도구 결과의 순서 |
+| 2. [The AI Scientist: Towards Fully Automated Open-Ended Scientific Discovery](https://arxiv.org/abs/2408.06292) · [블로그 해설]({{< relref "posts/scientist-agents-survey" >}}) | **개념 준비**: 가설·실험·결과·논문·평가 | 연구 루프의 단계와 결과를 검증하는 범위 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘누가 결정하고 어디에 기록하는지로 설계를 비교하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 들어가며 — "왜 다 똑같아 보이는데 결과는 다른가?"
 
 [Scientist Agents 1년 종합 보고서](scientist-agents-2025-2026-report.md)에서 100+ 시스템을 살펴봤다. 표면적으로 모두 같은 파이프라인:
@@ -24,7 +69,7 @@ draft: false
 - AlphaEvolve: Strassen 1969를 능가하는 행렬 곱셈 발견
 - Aletheia: 700 open math problem 중 63개 자율 해결
 
-**같은 파이프라인인데 왜 이렇게 다른가?** 답은 **설계 차원**에 있다. 이 글은 20개 핵심 차원을 정리하고, 각 차원에서 어떤 선택이 어떻게 결과를 가르는지 논문 ablation 근거로 추적한다.
+**같은 파이프라인인데 왜 이렇게 다른가?** 답은 **설계 차원**에 있다. 이 글은 20개 핵심 차원을 정리하고 각 차원에서 어떤 선택이 어떻게 결과를 가르는지 논문 ablation 근거로 추적한다.
 
 > **Note on rigor**: 20개 차원 중 **rigorous ablation으로 인과성이 증명된 것은 6개뿐**. 나머지 14개는 strong claim, weak isolation. 각 섹션 끝에 confidence rating(검증 강도) 표시.
 
@@ -37,7 +82,9 @@ draft: false
 5. **Shared corpora across agent labs** (AgentRxiv 모델) — 중간
 6. **Memory ablation** (A-MEM link/evolution, PiFlow principle library) — 중간
 
-나머지 — world model 디자인, 토폴로지 (flat vs 계층), 토론 파라미터, KG vs 노트 — 모두 **저자 주장 강함, 독립 검증 약함**.
+나머지 항목인 world model 디자인, 토폴로지 (flat vs 계층), 토론 파라미터, KG vs 노트에서는 **저자의 주장은 강하지만 독립 검증은 약하다**.
+
+같은 파이프라인에서도 실패한 실험을 어디에 남기는지, 다음 가설을 누가 고르는지, 결과를 어떤 기준으로 버리는지가 달라질 수 있다. 이 차이는 단계 이름만으로 드러나지 않는다. 아래 설계 차원은 정보와 의사결정이 단계 사이에서 어떻게 이동하는지 비교하기 위한 것이다. ablation이 있는 경우에는 해당 선택을 바꿨을 때 실제로 무엇이 달라졌는지도 함께 읽으면 된다.
 
 ---
 
@@ -770,3 +817,16 @@ Google AI Co-Scientist의 KIRA6 (AML), 간경변, cf-PICIs — 모두 외부 wet
 - [Memory in the Age of AI Agents survey (arXiv 2512.13564)](https://arxiv.org/abs/2512.13564)
 - [Anthropic Context Engineering Guide](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)
 - [Survey: LLM-based Scientific Agents (arXiv 2503.24047)](https://arxiv.org/abs/2503.24047)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 누가 결정하고 어디에 기록하는지로 설계를 비교하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[리뷰\] Cairn — 범용 문제 해결 엔진 (54/54 Tencent 해킹 챌린지 우승 시스템)]({{< relref "posts/cairn-general-problem-solver" >}}) — 공유 기록을 통해 다음 행동을 조율하는 구조 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

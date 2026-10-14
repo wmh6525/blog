@@ -9,6 +9,49 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [자료를 찾아 답하는 AI]({{< relref "learn" >}}#rag) · 16/17
+
+많은 문서 중 가까운 문서를 찾을 때 여러 후보를 함께 살펴보면 시간을 줄일 수 있다. 하지만 후보마다 일이 달라지면 동시에 계산하는 장치가 비효율적으로 움직인다. 이 연구는 검색 구조를 GPU의 병렬 계산에 맞추는 방법을 다룬다.
+
+**먼저 알아둘 말**
+
+- [GPU·병렬 처리]({{< relref "ai-glossary" >}}#gpu): GPU는 많은 계산을 함께 처리하는 데 쓰는 장치다. 병렬 처리는 작업을 나눠 동시에 수행하는 방식이다.
+- [그래프·지식 그래프]({{< relref "ai-glossary" >}}#graph): 대상들을 점으로, 그 사이 관계를 연결로 나타낸 구조. 지식 그래프는 대상과 관계에 의미를 붙여 정보를 표현한다.
+- [검색기·리랭킹]({{< relref "ai-glossary" >}}#retriever): 검색기는 후보 문서를 찾는다. 리랭킹은 그 후보를 다시 평가해 질문에 더 관련 있는 순서로 정렬한다.
+
+**이번 글의 목표:** 문서 검색을 GPU에서 병렬로 수행하는 설계 이해하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] CacheBlend (EuroSys 2025 Best Paper) — 비접두사 KV 캐시 재사용으로 RAG 5배 가속]({{< relref "posts/cacheblend-review" >}}).
+
+**본문에서 먼저 볼 순서:** **1. 문제: CPU ANN 알고리즘이 GPU에서 느린 이유** → **6. 실험 결과** → **9. 한계**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터의 거리·유사도, 그래프의 이웃 탐색, 근사 검색의 재현율, GPU의 병렬 실행.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs](https://arxiv.org/abs/1603.09320) | **개념 준비**: 근사 이웃 검색·그래프 탐색 | 이웃 연결을 따라 후보를 찾는 기본 탐색 흐름 |
+| 2. [Dense Passage Retrieval for Open-Domain Question Answering](https://arxiv.org/abs/2004.04906) · [블로그 해설]({{< relref "posts/retriever-training-survey" >}}) | **개념 준비**: 질문/문서 인코더·대조 학습·negative | 관련 문서와 오답 문서를 비교하는 학습 데이터 구성 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘문서 검색을 GPU에서 병렬로 수행하는 설계 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: CAGRA: Highly Parallel Graph Construction and Approximate Nearest Neighbor Search for GPUs
@@ -21,7 +64,7 @@ draft: false
 
 ## 1. 문제: CPU ANN 알고리즘이 GPU에서 느린 이유
 
-HNSW, NSG 같은 CPU 기반 그래프 ANN은 GPU의 SIMT 실행 모델과 근본적으로 호환되지 않는다:
+HNSW, NSG 같은 CPU 기반 그래프 ANN의 탐색 구조는 GPU의 SIMT 실행 모델과 맞지 않는다. 충돌하는 지점은 다음과 같다.
 
 | CPU ANN 특성 | GPU 문제 |
 |-------------|---------|
@@ -29,6 +72,8 @@ HNSW, NSG 같은 CPU 기반 그래프 ANN은 GPU의 SIMT 실행 모델과 근본
 | **계층 구조** (HNSW) | 순차적 탐색 → GPU 병렬성 활용 불가 |
 | **순차 그리디 탐색** | SIMT의 **워프 발산(warp divergence)** |
 | 메모리 접근 패턴 | GPU의 높은 대역폭(A100: 2 TB/s) 활용 불가 |
+
+그래프 검색에서는 각 탐색이 어느 이웃으로 이동하느냐에 따라 작업량이 달라진다. CPU에서는 자연스러운 이 불규칙성이 GPU에서는 함께 실행되는 스레드의 발을 맞추기 어렵게 만든다. 아래의 고정 차수와 병렬 탐색 설계는 이 작업량을 더 규칙적으로 만들기 위한 장치다. 검색 알고리즘과 하드웨어 배치를 함께 바꾼다는 점이 CAGRA를 이해하는 출발점이다.
 
 ---
 
@@ -186,7 +231,7 @@ NVIDIA의 오픈소스 벡터 검색 라이브러리. CAGRA 외에도:
 - IVF-Flat, IVF-PQ, HNSW, Brute-force, K-means
 - CAGRA-Q (양자화 버전)
 - **언어 바인딩**: C, C++, Python, Rust, Java, Go
-- **GPU↔CPU 호환**: CAGRA로 빌드 → HNSW로 변환하여 CPU 서빙
+- **GPU↔CPU 호환**: CAGRA로 빌드 → HNSW로 변환해 CPU 서빙
 
 ```python
 # cuVS Python 사용 예
@@ -209,3 +254,16 @@ distances, indices = cagra.search(search_params, index, queries, k=10)
 4. **그래프 최적화 CPU 수행**: 초기 k-NN은 GPU, 최적화는 CPU에서 실행
 5. **NVIDIA GPU 전용**: CUDA 기반, AMD/Intel GPU 미지원
 6. **IVF보다 높은 메모리 비용**: 전체 그래프를 GPU 메모리에 저장 필요
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 문서 검색을 GPU에서 병렬로 수행하는 설계 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[논문 리뷰\] Seismic (SIGIR 2024 준최우수) — 학습된 희소 검색을 서브밀리초로 가속]({{< relref "posts/seismic-review" >}}) — 검색 후보를 묶고 걸러 계산을 줄이는 흐름 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

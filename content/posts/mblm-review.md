@@ -9,6 +9,52 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [작은 단위를 묶어 표현하기]({{< relref "learn" >}}#representation) · 5/10
+
+작은 묶음들을 다시 큰 묶음으로 쌓으면 긴 입력을 여러 크기에서 다룰 수 있다. MBLM은 이 계층 구조를 바이트 모델에 사용한다. 전체 문맥을 처리하는 단계와 가까운 바이트를 만드는 단계가 어떻게 나뉘는지 따라가자.
+
+**먼저 알아둘 말**
+
+- [바이트]({{< relref "ai-glossary" >}}#byte): 컴퓨터가 데이터를 저장하는 단위. 글자를 바이트로 읽는 모델은 고정된 단어 조각 대신 더 작은 데이터 단위에서 출발한다.
+- [패치·청크]({{< relref "ai-glossary" >}}#patch): 작은 단위 여러 개를 한 묶음으로 만든 것. 이미지 패치, 바이트 패치, 문서 청크는 서로 다른 대상을 묶는다.
+- [압축·병목]({{< relref "ai-glossary" >}}#compression): 정보를 더 작은 표현에 담는 일. 저장량과 계산량을 줄일 수 있지만 어떤 정보가 남는지도 확인해야 한다.
+
+**이번 글의 목표:** 작은 묶음을 큰 묶음으로 쌓는 계층 구조 이해하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] H-Net: 완전 E2E 동적 청킹으로 토크나이저를 제거하다]({{< relref "posts/hnet-review" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **2. 배경 — 바이트 LM 계보** → **3. 아키텍처 순서도** → **8. 실험 결과**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터 표현, 압축과 복원, 시퀀스 길이; 잠재 분포를 다루는 글은 확률.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [MEGABYTE: Predicting Million-byte Sequences with Multiscale Transformers](https://arxiv.org/abs/2305.07185) · [블로그 해설]({{< relref "posts/blt-byte-level-lm-survey" >}}) | **개념 준비**: 바이트 패치·글로벌/로컬 모델 | 패치 사이 모델과 패치 안 모델의 역할 구분 |
+| 2. [Hierarchical Transformers Are More Efficient Language Models](https://arxiv.org/abs/2110.13711) · [블로그 해설]({{< relref "posts/hourglass-transformer-review" >}}) | **개념 준비**: 다운/업샘플링·스킵 연결·인과 정렬 | 축소된 시퀀스를 처리하고 원래 길이로 복원하는 그림 |
+| 3. [Mamba: Linear-Time Sequence Modeling with Selective State Spaces](https://arxiv.org/abs/2312.00752) · [블로그 해설]({{< relref "posts/mamba-ssm-review" >}}) | **개념 준비**: 입력 의존 상태 갱신·선택 메커니즘 | 입력에 따라 바뀌는 값과 selective scan의 역할 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘작은 묶음을 큰 묶음으로 쌓는 계층 구조 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: Multiscale Byte Language Models — A Hierarchical Architecture for Causal Million-Length Sequence Modeling
@@ -27,7 +73,7 @@ draft: false
 
 ## 2. 배경 — 바이트 LM 계보
 
-토크나이저 없이 **바이트를 직접 처리**하면 다국어·멀티모달 통합이 자연스럽다. 하지만 바이트 시퀀스는 토큰 대비 **4-6배 길어** Transformer가 비현실적.
+토크나이저 없이 **바이트를 직접 처리**하면 다국어·멀티모달 입력을 자연스럽게 통합할 수 있다. 다만 바이트 시퀀스는 토큰 대비 **4-6배 길어** Transformer로 처리하는 비용이 부담스럽다.
 
 | 모델 | 단계 | 백본 | 최대 컨텍스트 | 핵심 |
 |------|-----|------|------------|------|
@@ -116,6 +162,8 @@ $$Z \in \mathbb{R}^{K_N \times P_N \times V} = P_N^{\text{out}} \cdot W^{\text{h
 **평가 지표**:
 
 $$\text{BPB} = \frac{\ell_{\text{byte}}}{\ln 2}, \quad \text{PPL}_{\text{word}} = \exp\left(\frac{L_B}{L_W} \cdot \ell_{\text{byte}}\right)$$
+
+계층이 깊어질수록 상위 모델은 더 큰 바이트 묶음을 하나의 단위로 다룬다. 하위 모델은 그 묶음 안의 세부 바이트를 복원한다. 그래서 긴 문맥 전체를 읽는 단계와 가까운 바이트를 생성하는 단계의 비용이 다르다. 아래 reshape와 백본 배치는 어느 차원이 묶이고 어느 단계가 실제 시퀀스 모델링을 하는지 표시하며 읽으면 따라가기 쉽다.
 
 ---
 
@@ -345,3 +393,16 @@ LR 1e-3가 MegaByte 권장값보다 우수 (LR ablation으로 검증).
 - [MegaByte (arXiv:2305.07185)](https://arxiv.org/abs/2305.07185)
 - [MambaByte (arXiv:2401.13660)](https://arxiv.org/abs/2401.13660)
 - [BLT (arXiv:2412.09871)](https://arxiv.org/abs/2412.09871)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 작은 묶음을 큰 묶음으로 쌓는 계층 구조 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[논문 리뷰\] BLT-D — Byte Latent Transformer에 블록 디퓨전을 결합해 추론을 92% 가속]({{< relref "posts/blt-d-review" >}}) — 묶은 입력 처리와 바이트 출력 생성의 비용 구분하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

@@ -9,6 +9,52 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [작은 단위를 묶어 표현하기]({{< relref "learn" >}}#representation) · 6/10
+
+입력을 묶어 빠르게 처리해도 결과를 바이트 하나씩 내보내면 출력 단계가 느릴 수 있다. 이 연구는 그 출력 단계를 여러 위치를 함께 복원하는 방식으로 바꾼다. 입력 압축과 출력 병렬화가 서로 다른 작업이라는 점부터 이해하면 된다.
+
+**먼저 알아둘 말**
+
+- [바이트]({{< relref "ai-glossary" >}}#byte): 컴퓨터가 데이터를 저장하는 단위. 글자를 바이트로 읽는 모델은 고정된 단어 조각 대신 더 작은 데이터 단위에서 출발한다.
+- [확산·디노이징]({{< relref "ai-glossary" >}}#diffusion): 데이터를 훼손하는 과정과 그 훼손을 되돌리는 복원 과정을 다루는 생성 방식. 텍스트에서는 일부 위치를 가리는 방식도 사용한다.
+- [KV 캐시·프리필]({{< relref "ai-glossary" >}}#kv): KV 캐시는 Attention에 쓸 중간 계산 결과를 저장한 것이다. 프리필은 주어진 입력 문맥을 먼저 처리하는 단계다.
+
+**이번 글의 목표:** 묶은 입력 처리와 바이트 출력 생성의 비용 구분하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] MBLM — 5M 바이트 컨텍스트를 단일 GPU로 처리하는 계층적 바이트 LLM]({{< relref "posts/mblm-review" >}}).
+
+토큰과 벡터가 낯설다면 [텍스트 데이터 다루기]({{< relref "posts/build-llm-ch2-working-with-text-data" >}})의 설명부터 읽자.
+
+**본문에서 먼저 볼 순서:** **2. 배경 — BLT(Byte Latent Transformer)란?** → **3. BLT-D — 핵심 기법** → **8. 실험 결과**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 벡터 표현, 압축과 복원, 시퀀스 길이; 잠재 분포를 다루는 글은 확률.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Byte Latent Transformer: Patches Scale Better Than Tokens](https://arxiv.org/abs/2412.09871) · [블로그 해설]({{< relref "posts/blt-byte-level-lm-survey" >}}) | **개념 준비**: 엔트로피 패칭·바이트 인코더/디코더 | 경계를 정하고 묶음을 백본에 넘기는 흐름 |
+| 2. [Structured Denoising Diffusion Models in Discrete State-Spaces](https://arxiv.org/abs/2107.03006) · [블로그 해설]({{< relref "posts/diffusion-language-models-survey" >}}) | **개념 준비**: 이산 상태 전이·마스킹·역확산 | 연속 노이즈 대신 토큰 상태를 바꾸는 과정 |
+| 3. [Simple and Effective Masked Diffusion Language Models](https://arxiv.org/abs/2406.07524) · [블로그 해설]({{< relref "posts/mdlm-deep-review" >}}) | **개념 준비**: 마스킹 손실·복원·출력 제약 | 가린 토큰에 집중하는 학습과 샘플링 규칙 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘묶은 입력 처리와 바이트 출력 생성의 비용 구분하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: Fast Byte Latent Transformer
@@ -76,9 +122,11 @@ draft: false
 | **BLT가 해결** | ✅ 동적 패칭으로 글로벌 어텐션이 ~4배 적은 단위에서 동작 | ❌ |
 | **BLT가 못 푼 것** | | **바이트를 한 번에 1개씩** 자회귀 디코드 → 한 토큰 = 여러 바이트이므로 토큰 모델보다 디코더 forward pass가 훨씬 많이 필요 |
 
-→ **메모리 대역폭 병목** (디코더 가중치 + KV 캐시를 반복 스트리밍). FLOPs 병목이 아님.
+디코더 가중치와 KV 캐시를 반복해서 읽으므로 **메모리 대역폭이 병목**이다. FLOPs가 병목인 경우와는 구분해야 한다.
 
 > **Fast BLT의 질문**: BLT의 아키텍처를 유지하면서, 바이트를 **병렬 생성**할 수 없을까?
+
+BLT의 압축된 패치 시퀀스와 최종 바이트 출력은 서로 다른 계산 단계다. 백본이 짧은 시퀀스를 다루더라도, 로컬 디코더가 바이트를 하나씩 내보내면 출력 쪽의 반복 작업은 남는다. BLT-D가 손보는 부분은 이 로컬 디코더다. 뒤의 블록 디퓨전 설명은 패치 단위 압축과 바이트 단위 병렬 생성을 구분해 읽으면 이해하기 쉽다.
 
 ---
 
@@ -355,3 +403,16 @@ BLT-D 변형은 BLT 대비 **소폭 하락 (~1-4점)** — $\mathcal{L}_{\text{c
 - [Fast Byte Latent Transformer (arXiv:2605.08044)](https://arxiv.org/abs/2605.08044)
 - [원조 BLT (arXiv:2412.09871)](https://arxiv.org/abs/2412.09871)
 - [BLT 코드: github.com/facebookresearch/blt](https://github.com/facebookresearch/blt)
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 묶은 입력 처리와 바이트 출력 생성의 비용 구분하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[논문 리뷰\] SONAR — 200개 언어 + 음성을 하나의 1024차원 공간에 통합한 다국어 임베딩]({{< relref "posts/sonar-review" >}}) — 서로 다른 언어의 문장을 같은 벡터 공간에 두는 목적 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

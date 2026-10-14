@@ -9,6 +9,49 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [역전파를 바꾸면 무엇이 달라질까?]({{< relref "learn" >}}#no-bp) · 4/7
+
+층마다 자기 예측의 오차로 학습해도 오차의 크기와 내용이 서로 다르면 문제가 생길 수 있다. 이 연구는 깊은 모델에서 그 차이를 분석하고 조정한다. 어떤 층에 어떤 신호가 전달되는지부터 따라가 보자.
+
+**먼저 알아둘 말**
+
+- [Predictive Coding·예측 오차]({{< relref "ai-glossary" >}}#pc): 각 층의 예측과 현재 상태의 차이를 이용해 상태와 가중치를 조정하는 계산 방식. 상태 조정과 가중치 학습의 순서를 구분해 본다.
+- [손실 함수]({{< relref "ai-glossary" >}}#loss): 예측이 목표에서 얼마나 벗어났는지 계산하는 기준. 학습에서는 보통 이 값을 줄이려 한다.
+- [상태·SSM]({{< relref "ai-glossary" >}}#state): 상태는 이전까지 읽은 정보를 다음 단계에 전달하는 내부 값이다. SSM은 이 상태가 입력에 따라 바뀌고 출력을 만드는 관계를 모델링한다.
+
+**이번 글의 목표:** 층마다 예측 오차가 다를 때 생기는 문제 이해하기.
+
+**이 학습 경로의 앞 글:** [\[논문 리뷰\] Prospective Configuration: 역전파를 넘어서는 학습 — 먼저 상상하고, 그다음 굳힌다]({{< relref "posts/prospective-configuration-review" >}}).
+
+**본문에서 먼저 볼 순서:** **1. 배경: Predictive Coding Network란?** → **2. 핵심 기여: 두 가지 근본적 병리의 발견** → **4. 실험 결과**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 손실 함수, 미분·연쇄법칙, 가중치와 활성값의 구분; 에너지 기반 방법은 최적화와 수렴.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [Inferring neural activity before plasticity as a foundation for learning beyond backpropagation](https://doi.org/10.1038/s41593-023-01514-1) · [블로그 해설]({{< relref "posts/prospective-configuration-review" >}}) | **개념 준비**: 상태 최적화·가중치 학습·예측 오차 | 활성 상태를 먼저 조정하고 가중치를 나중에 바꾸는 순서 |
+| 2. [Equilibrium Propagation: Bridging the Gap Between Energy-Based Models and Backpropagation](https://arxiv.org/abs/1602.05179) | **개념 준비**: 에너지·평형 상태·두 단계 학습 | 자유 상태와 목표로 살짝 유도한 상태의 비교 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘층마다 예측 오차가 다를 때 생기는 문제 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 논문 정보
 
 - **제목**: Stable and Scalable Deep Predictive Coding Networks with Meta Prediction Errors
@@ -21,11 +64,11 @@ draft: false
 
 ## 1. 배경: Predictive Coding Network란?
 
-Predictive Coding(PC)은 뇌가 외부 환경에 대한 **예측을 지속적으로 생성**하고, **예측 오차(Prediction Error, PE)를 최소화**하여 내부 표현을 정제한다는 이론이다. PCN은 이를 신경망 아키텍처로 구현한 것으로, 역전파 대신 **순수 local learning rule**을 사용한다.
+Predictive Coding(PC)은 뇌가 외부 환경에 대한 **예측을 지속적으로 생성**하고 **예측 오차(Prediction Error, PE)를 최소화**하여 내부 표현을 정제한다는 이론이다. PCN은 이를 신경망 아키텍처로 구현한 것으로, 역전파 대신 **순수 local learning rule**을 사용한다.
 
 ### PCN의 핵심 구조
 
-각 계층 $l$은 latent state $\mathbf{z}_l$을 가지며, 순방향 예측 함수를 통해 다음 계층을 예측한다:
+각 계층 $l$에는 latent state $\mathbf{z}_l$이 있다. 순방향 예측 함수는 이 상태로 다음 계층을 예측한다.
 
 $$\hat{\mathbf{z}}_{l+1} = f_l(\mathbf{z}_l) = \phi(W_l \cdot \mathbf{z}_l + b_l)$$
 
@@ -49,11 +92,11 @@ PCN은 **추론 단계**(latent state 업데이트)와 **학습 단계**(가중�
 
 ## 2. 핵심 기여: 두 가지 근본적 병리의 발견
 
-이 논문의 가장 큰 기여는 **동적 평균장 이론(dynamical mean-field theory)**을 사용하여 깊은 PCN의 불안정성을 야기하는 **두 가지 근본 병리**를 수학적으로 규명한 것이다.
+이 논문의 가장 큰 기여는 **동적 평균장 이론(dynamical mean-field theory)**을 사용해 깊은 PCN의 불안정성을 야기하는 **두 가지 근본 병리**를 수학적으로 규명한 것이다.
 
 ### 병리 1: PE 불균형 (Imbalanced Prediction Errors)
 
-PE가 네트워크 경계(입력/출력 계층)에 집중되고, **중간 계층에서 소실**되는 현상이다.
+PE가 네트워크 경계(입력/출력 계층)에 집중되고 **중간 계층에서 소실**되는 현상이다.
 
 - 정보 전파 속도가 $O(\nu^k)$ ($\nu = \eta\sigma_w$)로 지수적 감쇠
 - 결과적으로 **U자형 오차 프로파일** 형성
@@ -72,6 +115,8 @@ $$\lVert \delta_l^{t+1} \rVert \approx \tau_t(\sigma_w) \lVert \delta_l^t \rVert
 - 안정 영역($\tau_t \approx 1$)은 네트워크가 깊어질수록 **기하급수적으로 축소**
 
 > 기존 역전파의 gradient vanishing/exploding과 다른 점: EVPE는 **파라미터 업데이트 이전**, 추론 단계 자체에서 발생한다.
+
+각 층이 예측 오차를 사용하더라도 오차의 규모와 정보량이 층마다 같지는 않을 수 있다. 깊은 PCN에서는 이 차이가 상태 조정과 가중치 학습에 함께 영향을 준다. 아래 PE 불균형과 EVPE는 그 실패를 서로 다른 관점에서 살펴본다. Meta-PCN의 개입이 오차의 크기를 조절하는지, 학습에 쓰이는 오차 정보를 바꾸는지 나눠 읽으면 각 장치의 역할이 드러난다.
 
 ---
 
@@ -160,3 +205,16 @@ $$W \leftarrow \frac{W}{(\sqrt{m} + \sqrt{n})\sigma_w}$$
 - 역전파를 능가하는 결과는, local learning이 뉴로모픽 하드웨어에서 실용화될 가능성을 보여준다
 
 다만, 이미지 분류를 넘어 **언어 모델이나 생성 모델**에서의 검증이 향후 핵심 과제가 될 것이다.
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 층마다 예측 오차가 다를 때 생기는 문제 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[서베이\] 역전파 없이 언어 모델을 학습하는 연구 동향과 사례]({{< relref "posts/no-bp-lm-survey" >}}) — 역전파 대신 무엇을 계산하고 저장하는지 비교하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->

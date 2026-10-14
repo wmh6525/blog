@@ -9,6 +9,51 @@ toc: true
 draft: false
 ---
 
+<!-- LEARNING-START -->
+## 처음 읽는 분을 위한 안내
+
+**학습 위치:** [도구를 쓰고 실험하는 AI]({{< relref "learn" >}}#agents) · 4/9
+
+여러 작업자가 공유 게시판에 확인한 사실과 다음 할 일을 남긴다고 생각해 보자. 다른 작업자는 그 기록을 읽어 다음 행동을 정한다. Cairn은 이런 공유 기록으로 작업을 연결하는 구조를 다룬다. 확인한 사실과 아직 검증하지 않은 단서를 구분해 읽자.
+
+**먼저 알아둘 말**
+
+- [에이전트·도구]({{< relref "ai-glossary" >}}#agent): 에이전트는 목표를 위해 행동을 선택하고 그 결과를 보고 다음 행동을 정하는 시스템이다. 도구는 검색이나 코드 실행처럼 호출할 수 있는 기능이다.
+- [그래프·지식 그래프]({{< relref "ai-glossary" >}}#graph): 대상들을 점으로, 그 사이 관계를 연결로 나타낸 구조. 지식 그래프는 대상과 관계에 의미를 붙여 정보를 표현한다.
+- [메모리·키·값]({{< relref "ai-glossary" >}}#memory): 메모리는 정보를 저장하고 다시 읽는 구조다. 키는 항목을 찾는 단서, 값은 그 항목에서 꺼내는 내용으로 생각하면 된다.
+
+**이번 글의 목표:** 공유 기록을 통해 다음 행동을 조율하는 구조 이해하기.
+
+**이 학습 경로의 앞 글:** [\[설계론\] Scientist Agents가 같아 보이지만 다른 20가지 — 차별화를 만드는 설계 차원]({{< relref "posts/scientist-agents-design-dimensions" >}}).
+
+검색으로 자료를 가져오는 흐름은 [RAG 전체 흐름]({{< relref "posts/rag-survey-2026" >}})에서 먼저 볼 수 있다.
+
+**본문에서 먼저 볼 순서:** **3. 아키텍처 — Blackboard + OODA + Stigmergy** → **4. 시스템 컴포넌트 3층 구조** → **9. 한계와 미해결 지점 (필자 관점)**.
+
+첫 독서에서는 문제와 방법의 흐름을 잡자. 수식·코드·세부 성능표는 두 번째에 읽어도 된다. 구현과 수학적 주장까지 확인하려면 그 부분을 다시 살펴봐야 한다.
+
+<!-- PAPER-PREREQUISITES -->
+### 선수 개념과 읽을 논문
+
+**먼저 이해할 개념:** 도구 호출의 입력/출력, 실험 설계와 비교 조건, 검증과 재현의 구분.
+
+아래 순서는 이 글을 이해하기 위한 공부 순서다. ‘개념 준비’는 읽기 안내이며, 직접적인 연구 계보는 연결 칸에 따로 표시했다. 이미 해당 개념을 설명할 수 있다면 아는 부분은 넘어가도 된다.
+
+| 순서·논문 | 연결·익힐 개념 | 먼저 볼 부분 |
+|---|---|---|
+| 1. [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629) | **개념 준비**: 생각·행동·관측의 반복 | 추론 문장, 도구 호출, 도구 결과의 순서 |
+| 2. [The AI Scientist: Towards Fully Automated Open-Ended Scientific Discovery](https://arxiv.org/abs/2408.06292) · [블로그 해설]({{< relref "posts/scientist-agents-survey" >}}) | **개념 준비**: 가설·실험·결과·논문·평가 | 연구 루프의 단계와 결과를 검증하는 범위 |
+
+**현재 글과 연결하기:** 위 개념을 익힌 뒤, 이 글에서 ‘공유 기록을 통해 다음 행동을 조율하는 구조 이해하기’에 해당하는 부분을 읽자. 기존 방법의 어느 단계가 바뀌었는지 그림이나 입력·출력으로 설명해 보자.
+
+[선수 논문 전체 지도와 원문 읽는 법]({{< relref "paper-prerequisites" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- PAPER-PREREQUISITES-END -->
+
+<!-- LEARNING-START-END -->
+
+---
+
 ## 한 줄 소개
 
 > **"Blackboard + OODA + stigmergy"** — 에이전트끼리 직접 대화하지 않고 공유 그래프에 사실만 쓴다. 사전 학습·MCP 도구·RAG·역할 정의 **하나 없이** Tencent Cloud 해킹 챌린지 **54문제 전부 solve** (참가팀 610팀 중 유일), 종합 3위.
@@ -22,7 +67,7 @@ draft: false
 
 ## 1. Cairn이 뭐고 왜 재미있는가?
 
-Cairn은 **범용 문제 해결 엔진** (general-purpose problem-solving engine)이다. 저자의 명확한 정의:
+Cairn은 **범용 문제 해결 엔진** (general-purpose problem-solving engine)이다. 저자는 적용할 문제를 다음과 같이 정의한다.
 
 > **"기점(origin)이 정의되고, 목표(goal)가 정의되어 있으며, 그 사이의 경로가 미지인 문제"**
 
@@ -85,6 +130,8 @@ Act       → 실행하고 Fact 기록
 | **Explore** | Claimed Intent 실행, 결과를 Fact로 보고 |
 
 **설계적 우아함**: 세 task가 다른 코드가 아니라 **같은 Worker의 다른 진입점**. Bootstrap은 사실상 "선택적" — 실패해도 Reason이 이어받음.
+
+Blackboard에서는 한 에이전트가 알아낸 사실을 공유 공간에 남기고, 다른 에이전트가 그 상태를 읽어 다음 행동을 정한다. 직접 메시지를 주고받는 과정 대신 공유된 기록이 작업을 연결하는 셈이다. 아래 Fact·Intent·Hint를 볼 때는 이미 확인한 내용, 앞으로 하려는 일, 아직 검증해야 할 단서를 어떻게 구분하는지에 주목하면 된다.
 
 ---
 
@@ -339,3 +386,16 @@ Cairn은 침투 테스트 도구를 포함한다. README의 명시적 경고:
 - **관련 글 (중국어)**:
   - "The Strongest AI Penetration Testing Agent: Postmortem..."
   - "The Pathless Path: Cairn AI from Penetration Testing to General Problem Solving"
+
+<!-- LEARNING-END -->
+---
+
+## 읽은 뒤 확인하고 다음으로
+
+**확인 질문:** 공유 기록을 통해 다음 행동을 조율하는 구조 이해하기를 목표로, 본문에서 다룬 입력·중간 과정·결과를 자기 말로 설명해 보자. 실험이나 사례가 있다면 어떤 조건에서 확인했는지도 덧붙여 보자.
+
+**다음 글:** [\[서베이\] Context Condensation 연구 동향 (2026) — 에이전트 컴팩션·RL 학습·안전성·표현 압축·이론]({{< relref "posts/context-condensation-survey-2026" >}}) — 긴 작업 기록에서 무엇을 줄이고 남기는지 이해하기.
+
+[전체 학습 순서]({{< relref "learn" >}}) · [용어 사전]({{< relref "ai-glossary" >}})
+
+<!-- LEARNING-END-END -->
