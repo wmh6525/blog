@@ -24,6 +24,7 @@ draft: false
 | 이해하려는 글 | 먼저 읽을 흐름 | 먼저 이해할 개념 |
 |---|---|---|
 | Mamba | HiPPO → S4 → Mamba | 상태, 긴 과거의 압축, 고정 전이와 입력 의존 갱신 |
+| 사전학습 효율·데이터 전략 (2026 가을) | AdamW → Chinchilla 스케일링 → 혼합정밀 학습 → DoReMi | 옵티마이저와 가중치 감쇠, 토큰/파라미터 비율, 저정밀 수 표현, 도메인 혼합비 |
 | Mamba-2 | Transformer의 Attention + Mamba → Mamba-2 | 재귀 계산과 구조화 행렬 계산의 대응 |
 | H-Net | 바이트·패치 개념 → BLT + Mamba-2 → H-Net | 미리 정한 경계와 학습되는 경계 |
 | DeBERTa | Transformer → BERT → ELECTRA의 판별 학습 | 문맥, 위치 표현, 마스크 예측과 대체 토큰 판별 |
