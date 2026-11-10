@@ -89,6 +89,7 @@ draft: false
 15. [\[논문 리뷰\] CacheBlend (EuroSys 2025 Best Paper) — 비접두사 KV 캐시 재사용으로 RAG 5배 가속]({{< relref "posts/cacheblend-review" >}}) — 저장한 계산을 재사용할 때 문맥 차이를 반영하는 이유 이해하기.
 16. [\[논문 리뷰\] CAGRA — GPU에서 ANN 검색을 10-77배 가속하는 NVIDIA의 그래프 인덱스]({{< relref "posts/cagra-review" >}}) — 문서 검색을 GPU에서 병렬로 수행하는 설계 이해하기.
 17. [\[논문 리뷰\] Seismic (SIGIR 2024 준최우수) — 학습된 희소 검색을 서브밀리초로 가속]({{< relref "posts/seismic-review" >}}) — 검색 후보를 묶고 걸러 계산을 줄이는 흐름 이해하기.
+18. [\[서베이\] 다 넣을 수 있게 된 뒤의 RAG (2026 가을) — 병목은 읽기가 아니라 검색이다]({{< relref "posts/rag-evidence-selection-survey-2026" >}}) — ‘답이 맞았는가’와 ‘근거를 다 찾았는가’를 나눠서 보기.
 
 ## 좋은 답을 배우고 기존 능력 지키기 {#learning}
 
