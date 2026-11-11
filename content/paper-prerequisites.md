@@ -26,6 +26,7 @@ draft: false
 | Mamba | HiPPO → S4 → Mamba | 상태, 긴 과거의 압축, 고정 전이와 입력 의존 갱신 |
 | 사전학습 효율·데이터 전략 (2026 가을) | AdamW → Chinchilla 스케일링 → 혼합정밀 학습 → DoReMi | 옵티마이저와 가중치 감쇠, 토큰/파라미터 비율, 저정밀 수 표현, 도메인 혼합비 |
 | RAG 증거 선택 (2026 가을) | DPR → RAG → HotpotQA 멀티홉 → Self-RAG | 벡터 유사도, 멀티홉 질의, 재현율과 정밀도의 구분, 근거 인용 평가 |
+| 추측 디코딩 | Speculative Decoding → Speculative Sampling → Medusa → EAGLE | 메모리 바운드 디코딩, 수용·거절 규칙, 잔차 분포, 기대 가속 공식 |
 | 모델 경량화 (2026 가을) | GPTQ → SparseGPT → 추측 디코딩 → Mixtral | 사후 양자화, 원샷 가지치기, 초안·검증 구조, 활성 파라미터와 전체 파라미터의 분리 |
 | Mamba-2 | Transformer의 Attention + Mamba → Mamba-2 | 재귀 계산과 구조화 행렬 계산의 대응 |
 | H-Net | 바이트·패치 개념 → BLT + Mamba-2 → H-Net | 미리 정한 경계와 학습되는 경계 |
